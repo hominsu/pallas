@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package pallas.service.v1;
+
+import "google/api/annotations.proto";
+import "google/gnostic/openapiv3/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
+
+service User {
+  rpc Signup (SignupRequest) returns (SignupReply) {
+    option (google.api.http) = {
+      post: "/v1/signup",
+      body: "*",
+    };
+
+    option (openapi.v3.operation) = {
+      description: "signup";
+    };
+  };
+
+  rpc Signin (SigninRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/signin",
+      body: "*",
+    };
+
+    option (openapi.v3.operation) = {
+      description: "signin";
+    };
+  };
+
+  rpc SignOut (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/sign-out",
+    };
+
+    option (openapi.v3.operation) = {
+      description: "signin";
+    };
+  };
+}
+
+message SignupRequest {
+  string nick_name = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message SignupReply {
+
+}
+
+message SigninRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message SigninReply {
+
+}

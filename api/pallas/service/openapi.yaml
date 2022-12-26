@@ -11,6 +11,69 @@ info:
         email: hominsu@foxmail.com
     version: "1.0"
 paths:
+    /v1/sign-out:
+        post:
+            tags:
+                - User
+            operationId: User_SignOut
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/signin:
+        post:
+            tags:
+                - User
+            operationId: User_Signin
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SigninRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SigninReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/signup:
+        post:
+            tags:
+                - User
+            operationId: User_Signup
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SignupRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SignupReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/site/ping:
         get:
             tags:
@@ -45,6 +108,18 @@ components:
             properties:
                 version:
                     type: string
+        SigninReply:
+            type: object
+            properties: {}
+        SigninRequest:
+            type: object
+            properties: {}
+        SignupReply:
+            type: object
+            properties: {}
+        SignupRequest:
+            type: object
+            properties: {}
         Status:
             type: object
             properties:
@@ -63,3 +138,4 @@ components:
             description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
 tags:
     - name: Site
+    - name: User

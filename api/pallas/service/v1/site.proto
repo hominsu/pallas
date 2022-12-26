@@ -4,6 +4,7 @@ package pallas.service.v1;
 
 import "google/api/annotations.proto";
 import "google/gnostic/openapiv3/annotations.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
 
@@ -21,7 +22,7 @@ option (openapi.v3.document) = {
 };
 
 service Site {
-  rpc Ping (PingRequest) returns (PingReply) {
+  rpc Ping (google.protobuf.Empty) returns (PingReply) {
     option (google.api.http) = {
       get: "/v1/site/ping",
     };
@@ -30,9 +31,6 @@ service Site {
       description: "return the version of backend";
     };
   };
-}
-
-message PingRequest {
 }
 
 message PingReply {
