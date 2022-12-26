@@ -8,12 +8,17 @@ import (
 	"github.com/go-kratos/kratos/v2/transport/http"
 	"github.com/gorilla/handlers"
 
-	siteV1 "github.com/hominsu/pallas/api/pallas/service/v1"
+	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
 	"github.com/hominsu/pallas/app/pallas/service/internal/service"
 )
 
-func NewHTTPServer(c *conf.Server, ss *service.SiteService, logger log.Logger) *http.Server {
+func NewHTTPServer(
+	c *conf.Server,
+	ss *service.SiteService,
+	us *service.UserService,
+	logger log.Logger,
+) *http.Server {
 	opts := []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -40,6 +45,8 @@ func NewHTTPServer(c *conf.Server, ss *service.SiteService, logger log.Logger) *
 	}
 	srv := http.NewServer(opts...)
 
-	siteV1.RegisterSiteHTTPServer(srv, ss)
+	v1.RegisterSiteHTTPServer(srv, ss)
+	v1.RegisterUserHTTPServer(srv, us)
+
 	return srv
 }

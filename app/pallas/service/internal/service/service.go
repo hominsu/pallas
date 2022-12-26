@@ -4,20 +4,34 @@ import (
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
 
-	siteV1 "github.com/hominsu/pallas/api/pallas/service/v1"
+	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
 )
 
 // ProviderSet is service providers.
-var ProviderSet = wire.NewSet(NewSiteService)
+var ProviderSet = wire.NewSet(NewSiteService, NewUserService)
 
 type SiteService struct {
-	siteV1.UnimplementedSiteServer
+	v1.UnimplementedSiteServer
+
+	version string
+	log     *log.Helper
+}
+
+func NewSiteService(version string, logger log.Logger) *SiteService {
+	return &SiteService{
+		version: version,
+		log:     log.NewHelper(log.With(logger, "module", "service/site")),
+	}
+}
+
+type UserService struct {
+	v1.UnimplementedUserServer
 
 	log *log.Helper
 }
 
-func NewSiteService(logger log.Logger) *SiteService {
-	return &SiteService{
-		log: log.NewHelper(log.With(logger, "module", "service/site")),
+func NewUserService(logger log.Logger) *UserService {
+	return &UserService{
+		log: log.NewHelper(log.With(logger, "module", "service/user")),
 	}
 }

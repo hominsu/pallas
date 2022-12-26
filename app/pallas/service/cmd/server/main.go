@@ -75,7 +75,7 @@ func main() {
 		"span_id", tracing.SpanID(),
 	)
 
-	app, cleanup, err := initApp(bc.Server, logger)
+	app, cleanup, err := initApp(bc.Server, Version, logger)
 	if err != nil {
 		panic(err)
 	}

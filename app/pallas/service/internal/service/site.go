@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 
-	siteV1 "github.com/hominsu/pallas/api/pallas/service/v1"
+	"google.golang.org/protobuf/types/known/emptypb"
+
+	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
 )
 
-func (s *SiteService) Ping(context.Context, *siteV1.PingRequest) (*siteV1.PingReply, error) {
-	return &siteV1.PingReply{
-		Version: "1.0.0",
+func (s *SiteService) Ping(ctx context.Context, in *emptypb.Empty) (*v1.PingReply, error) {
+	return &v1.PingReply{
+		Version: s.version,
 	}, nil
 }
