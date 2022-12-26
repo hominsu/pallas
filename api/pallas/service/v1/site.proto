@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package pallas.service.v1;
+
+import "google/api/annotations.proto";
+import "google/gnostic/openapiv3/annotations.proto";
+
+option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
+
+option (openapi.v3.document) = {
+  info: {
+    title: "pallas";
+    description: "docs for pallas apis";
+    version: "1.0";
+    contact: {
+      name: "hominsu";
+      url: "https://github.com/hominsu/pallas";
+      email: "hominsu@foxmail.com";
+    };
+  };
+};
+
+service Site {
+  rpc Ping (PingRequest) returns (PingReply) {
+    option (google.api.http) = {
+      get: "/v1/site/ping",
+    };
+
+    option (openapi.v3.operation) = {
+      description: "return the version of backend";
+    };
+  };
+}
+
+message PingRequest {
+}
+
+message PingReply {
+  string version = 1;
+}

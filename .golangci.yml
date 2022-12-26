@@ -1,0 +1,95 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  fast: false
+  enable:
+    - deadcode
+    - dogsled
+    - durationcheck
+    - errcheck
+    - exportloopref
+    - govet
+    - gofmt
+    - goconst
+    - gomnd
+    - gocyclo
+    - ineffassign
+    - lll
+    - prealloc
+    - revive
+    - typecheck
+    - varcheck
+
+  # don't enable:
+  # - asciicheck
+  # - bodyclose
+  # - scopelint
+  # - gochecknoglobals
+  # - gocognit
+  # - godot
+  # - godox
+  # - goerr113
+  # - gofumpt
+  # - goimports
+  # - gosimple
+  # - interfacer
+  # - maligned
+  # - nestif
+  # - prealloc
+  # - testpackage
+  # - staticcheck
+  # - structcheck
+  # - stylrcheck
+  # - unused
+  # - wastedassign
+  # - whitespace
+  # - wsl
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  whitespace:
+    multi-func: true
+  lll:
+    line-length: 160
+  gomnd:
+    # don't include the "operation", "argument" and "assign"
+    checks:
+      - case
+      - condition
+      - return
+  goconst:
+    ignore-tests: true
+  gocyclo:
+    # recommend 10-20
+    min-complexity: 30
+
+issues:
+  exclude:
+    - Id
+    - appId
+    - AppId
+    - AvatarUrl
+    - Openid
+    - journalId
+    - JournalId
+    - journalDetailId
+    - JournalDetailId
+    - conferenceId
+    - ConferenceId
+    - conferenceDetailId
+    - conferenceDetailId
+    - publicationId
+    - PublicationId
+    - followId
+    - FollowId
+    - GetPublicationById
+    - GetPublicationDetailsById
+  exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: _test\.go
+      linters:
+        - lll

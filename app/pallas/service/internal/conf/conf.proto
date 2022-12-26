@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package pallas.service.internal.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "pallas/service/internal/conf;conf";
+
+message Bootstrap {
+  Server server = 1;
+}
+
+message Server {
+  message HTTP {
+    string network = 1;
+    string addr = 2;
+    google.protobuf.Duration timeout = 3;
+  }
+  HTTP http = 1;
+}
