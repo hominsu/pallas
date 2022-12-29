@@ -21,7 +21,7 @@ option (openapi.v3.document) = {
   };
 };
 
-service Site {
+service SiteService {
   rpc Ping (google.protobuf.Empty) returns (PingReply) {
     option (google.api.http) = {
       get: "/v1/site/ping",

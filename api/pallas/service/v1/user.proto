@@ -5,11 +5,13 @@ package pallas.service.v1;
 import "google/api/annotations.proto";
 import "google/gnostic/openapiv3/annotations.proto";
 import "google/protobuf/empty.proto";
+import "v1/base.proto";
+import "validate/validate.proto";
 
 option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
 
-service User {
-  rpc Signup (SignupRequest) returns (SignupReply) {
+service UserService {
+  rpc Signup (SignupRequest) returns (User) {
     option (google.api.http) = {
       post: "/v1/signup",
       body: "*",
@@ -20,7 +22,7 @@ service User {
     };
   };
 
-  rpc Signin (SigninRequest) returns (google.protobuf.Empty) {
+  rpc Signin (SigninRequest) returns (SigninReply) {
     option (google.api.http) = {
       post: "/v1/signin",
       body: "*",
@@ -34,29 +36,86 @@ service User {
   rpc SignOut (google.protobuf.Empty) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v1/sign-out",
+      body: "*",
     };
 
     option (openapi.v3.operation) = {
       description: "signin";
     };
   };
+
+  rpc GetUser (GetUserRequest) returns (User) {
+    option (google.api.http) = {
+      get: "/v1/users/{id}",
+    };
+  };
+
+  rpc UpdateUser (UpdateUserRequest) returns (User) {
+    option (google.api.http) = {
+      patch: "/v1/users/{user.id}",
+      body: "*",
+    };
+  };
+
+  rpc DeleteUser (DeleteUserRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/v1/users/{id}",
+    };
+  };
+
+  rpc ListUsers (ListUsersRequest) returns (ListUsersReply) {
+    option (google.api.http) = {
+      get: "/v1/users",
+    };
+  };
 }
 
 message SignupRequest {
-  string nick_name = 1;
-  string email = 2;
-  string password = 3;
-}
-
-message SignupReply {
-
+  string email = 1 [(validate.rules).string = {ignore_empty: true, email: true}];
+  string password = 2;
 }
 
 message SigninRequest {
-  string email = 1;
+  string email = 1 [(validate.rules).string = {ignore_empty: true, email: true}];
   string password = 2;
 }
 
 message SigninReply {
 
+}
+
+message GetUserRequest {
+  int64 id = 1;
+  View view = 2;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+    BASIC = 1;
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message UpdateUserRequest {
+  User user = 1;
+}
+
+message DeleteUserRequest {
+  int64 id = 1;
+}
+
+message ListUsersRequest {
+  int32 page_size = 1 [(validate.rules).int32 = {gt:0}];
+  string page_token = 2;
+  View view = 3;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+    BASIC = 1;
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message ListUsersReply {
+  repeated User users = 1;
+  string next_page_token = 2;
 }

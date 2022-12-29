@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package pallas.service.v1;
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
+
+message Group {
+  int64 id = 1;
+  string name = 2;
+  uint64 max_storage = 3;
+  bool share_enabled = 4;
+  int64 speed_limit = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  repeated User users = 8;
+}
+
+message User {
+  int64 id = 1;
+  int64 group_id = 2;
+  string email = 3 [(validate.rules).string = {ignore_empty: true, email: true}];
+  string nick_name = 4;
+  string password = 5;
+  uint64 storage = 6;
+  int64 score = 7;
+  Status status = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  Group owner_group = 11;
+
+  enum Status {
+    NON_ACTIVATED = 0;
+    ACTIVE = 1;
+    BANNED = 2;
+    OVERUSE_BANED = 3;
+  }
+}

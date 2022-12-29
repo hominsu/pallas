@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package pallas.service.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "v1/base.proto";
+import "validate/validate.proto";
+
+option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
+
+service AdminService {
+  rpc CreateGroup (CreateGroupRequest) returns (Group) {
+    option (google.api.http) = {
+      post: "/v1/admin/groups",
+      body: "group",
+    };
+  };
+
+  rpc GetGroup (GetGroupRequest) returns (Group) {
+    option (google.api.http) = {
+      get: "/v1/admin/groups/{id}",
+    };
+  };
+
+  rpc UpdateGroup (UpdateGroupRequest) returns (Group) {
+    option (google.api.http) = {
+      patch: "/v1/admin/groups/{group.id}",
+      body: "group",
+    };
+  };
+
+  rpc DeleteGroup (DeleteGroupRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/v1/admin/groups/{id}",
+    };
+  };
+
+  rpc ListGroups (ListGroupsRequest) returns (ListGroupsReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/groups",
+    };
+  };
+}
+
+message CreateGroupRequest {
+  Group group = 1;
+}
+
+message GetGroupRequest {
+  int64 id = 1;
+  View view = 2;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+    BASIC = 1;
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message UpdateGroupRequest {
+  Group group = 1;
+}
+
+message DeleteGroupRequest {
+  int64 id = 1;
+}
+
+message ListGroupsRequest {
+  int32 page_size = 1 [(validate.rules).int32 = {gt:0}];
+  string page_token = 2;
+  View view = 3;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+    BASIC = 1;
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message ListGroupsReply {
+  repeated Group group_list = 1;
+  string next_page_token = 2;
+}
