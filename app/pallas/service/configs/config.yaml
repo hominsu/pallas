@@ -2,3 +2,17 @@ server:
   http:
     addr: 0.0.0.0:8000
     timeout: 60s
+data:
+  database:
+    driver: mysql
+    source: root:dangerous@tcp(127.0.0.1:3306)/pallas?charset=utf8mb4&parseTime=True&loc=Local
+  redis:
+    addr: 192.168.1.110:6379
+    password: redis-password
+    db: 0
+    cache_expiration: 1800s
+    read_timeout: 0.2s
+    write_timeout: 0.2s
+secret:
+  session:
+    session_key: "hello"

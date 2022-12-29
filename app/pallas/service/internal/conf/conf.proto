@@ -8,6 +8,8 @@ option go_package = "pallas/service/internal/conf;conf";
 
 message Bootstrap {
   Server server = 1;
+  Data data = 2;
+  Secret secret = 3;
 }
 
 message Server {
@@ -17,4 +19,29 @@ message Server {
     google.protobuf.Duration timeout = 3;
   }
   HTTP http = 1;
+}
+
+message Data {
+  message Database {
+    string driver = 1;
+    string source = 2;
+  }
+  message Redis {
+    string network = 1;
+    string addr = 2;
+    string password = 3;
+    int32 db = 4;
+    google.protobuf.Duration cache_expiration = 5;
+    google.protobuf.Duration read_timeout = 6;
+    google.protobuf.Duration write_timeout = 7;
+  }
+  Database database = 1;
+  Redis redis = 2;
+}
+
+message Secret {
+  message Session {
+    string session_key = 1;
+  }
+  Session session = 1;
 }
