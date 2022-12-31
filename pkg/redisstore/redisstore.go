@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	khttp "github.com/go-kratos/kratos/v2/transport/http"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -176,23 +178,34 @@ func (s *RedisStore) Save(r *http.Request, w http.ResponseWriter, session *sessi
 	return nil
 }
 
-// Delete removes the session from redis, and sets the cookie to expire.
-//
-// WARNING: This method should be considered deprecated since it is not exposed via the gorilla/sessions interface.
-// Set session.Options.MaxAge = -1 and call Save instead. - July 18th, 2013
-func (s *RedisStore) Delete(ctx context.Context, _ *http.Request, w http.ResponseWriter, session *sessions.Session) error {
-	if err := s.rdCmd.Del(ctx, s.keyPrefix+session.ID).Err(); err != nil {
-		return err
-	}
-	// Set cookie to expire.
-	options := *session.Options
-	options.MaxAge = -1
-	http.SetCookie(w, sessions.NewCookie(session.Name(), "", &options))
-	// Clear session values.
-	for k := range session.Values {
-		delete(session.Values, k)
+func (s *RedisStore) SaveWithTransport(ctx context.Context, ht *khttp.Transport, session *sessions.Session) error {
+	// Marked for deletion.
+	if session.Options.MaxAge <= 0 {
+		if err := s.delete(ctx, session); err != nil {
+			return err
+		}
+		setCookie(ht, sessions.NewCookie(session.Name(), "", session.Options))
+	} else {
+		// Build an alphanumeric key for the redis store.
+		if session.ID == "" {
+			session.ID = strings.TrimRight(base32.StdEncoding.EncodeToString(securecookie.GenerateRandomKey(32)), "=")
+		}
+		if err := s.save(ctx, session); err != nil {
+			return err
+		}
+		encoded, err := securecookie.EncodeMulti(session.Name(), session.ID, s.Codecs...)
+		if err != nil {
+			return err
+		}
+		setCookie(ht, sessions.NewCookie(session.Name(), encoded, session.Options))
 	}
 	return nil
+}
+
+func setCookie(ht *khttp.Transport, cookie *http.Cookie) {
+	if v := cookie.String(); v != "" {
+		ht.ReplyHeader().Set("Set-Cookie", v)
+	}
 }
 
 // save stores the session in redis.
