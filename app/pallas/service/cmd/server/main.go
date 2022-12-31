@@ -8,7 +8,6 @@ import (
 	"github.com/go-kratos/kratos/v2/config"
 	"github.com/go-kratos/kratos/v2/config/file"
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	"github.com/go-kratos/kratos/v2/transport/http"
 
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
@@ -71,11 +70,9 @@ func main() {
 		"service.version", Version,
 		"ts", log.DefaultTimestamp,
 		"caller", log.DefaultCaller,
-		"trace_id", tracing.TraceID(),
-		"span_id", tracing.SpanID(),
 	)
 
-	app, cleanup, err := initApp(bc.Server, Version, logger)
+	app, cleanup, err := initApp(bc.Server, bc.Data, bc.Secret, Version, logger)
 	if err != nil {
 		panic(err)
 	}
