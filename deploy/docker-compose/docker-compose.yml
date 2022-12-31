@@ -1,0 +1,21 @@
+version: '3.4'
+
+services:
+  pallas:
+    image: hominsu/pallas:latest
+    container_name: pallas
+    restart: always
+    environment:
+      TZ: "Asia/Shanghai"
+    volumes:
+      - "../../app/pallas/service/configs:/data/conf"
+    ports:
+      - "8000:8000"
+    networks:
+      net:
+        aliases:
+          - pallas
+
+networks:
+  net:
+    driver: bridge

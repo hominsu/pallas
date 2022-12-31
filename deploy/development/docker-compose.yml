@@ -1,0 +1,38 @@
+version: '3.4'
+
+services:
+  mysql:
+    restart: always
+    image: mysql:8.0-oracle
+    container_name: mysql
+    volumes:
+      - ./mysql/mysql:/var/lib/mysql
+      - ./mysql/conf/my.cnf:/etc/my.cnf
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    environment:
+      - "MYSQL_ROOT_PASSWORD=dangerous"
+    ports:
+      - "3306:3306"
+    networks:
+      net:
+        aliases:
+          - mysql
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    command: redis-server --port 6379 --requirepass redis-password
+    volumes:
+      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf
+      - ./redis/data:/data
+      - ./redis/logs:/logs
+    ports:
+      - "6379:6379"
+    networks:
+      net:
+        aliases:
+          - redis
+
+networks:
+  net:
+    driver: bridge
