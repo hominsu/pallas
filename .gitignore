@@ -5,18 +5,18 @@
 *.rdb
 *.log
 **/consul/data
-cmake-build-*/
-build/
 
 **/.DS_Store
 
-api/**/*.pb.go
-api/**/*.validate.go
+/api/**/*.pb.go
+/api/**/*.validate.go
 
-app/**/conf/*.pb.go
-app/**/cmd/server/wire_gen.go
+/app/**/conf/*.pb.go
+/app/**/cmd/server/wire_gen.go
 
-app/**/internal/data/ent
-!app/**/internal/data/ent/schema
-!app/**/internal/data/ent/external.go
-!app/**/internal/data/ent/generate.go
+/app/**/internal/data/ent
+!/app/**/internal/data/ent/schema
+!/app/**/internal/data/ent/external.go
+!/app/**/internal/data/ent/generate.go
+
+/deploy/development/mysql/mysql/
