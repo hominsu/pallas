@@ -8,7 +8,7 @@ import (
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
 )
 
-func (s *SiteService) Ping(ctx context.Context, in *emptypb.Empty) (*v1.PingReply, error) {
+func (s *SiteService) Ping(ctx context.Context, req *emptypb.Empty) (*v1.PingReply, error) {
 	return &v1.PingReply{
 		Version: s.version,
 	}, nil
