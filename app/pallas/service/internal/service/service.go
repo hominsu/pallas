@@ -5,13 +5,18 @@ import (
 	"github.com/google/wire"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
+	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
 )
 
 // ProviderSet is service providers.
-var ProviderSet = wire.NewSet(NewSiteService, NewUserService)
+var ProviderSet = wire.NewSet(
+	NewSiteService,
+	NewUserService,
+	NewAdminService,
+)
 
 type SiteService struct {
-	v1.UnimplementedSiteServer
+	v1.UnimplementedSiteServiceServer
 
 	version string
 	log     *log.Helper
@@ -25,13 +30,29 @@ func NewSiteService(version string, logger log.Logger) *SiteService {
 }
 
 type UserService struct {
-	v1.UnimplementedUserServer
+	v1.UnimplementedUserServiceServer
 
+	uu  *biz.UserUsecase
 	log *log.Helper
 }
 
-func NewUserService(logger log.Logger) *UserService {
+func NewUserService(uu *biz.UserUsecase, logger log.Logger) *UserService {
 	return &UserService{
+		uu:  uu,
 		log: log.NewHelper(log.With(logger, "module", "service/user")),
+	}
+}
+
+type AdminService struct {
+	v1.UnimplementedAdminServiceServer
+
+	gu  *biz.GroupUsecase
+	log *log.Helper
+}
+
+func NewAdminService(gu *biz.GroupUsecase, logger log.Logger) *AdminService {
+	return &AdminService{
+		gu:  gu,
+		log: log.NewHelper(log.With(logger, "module", "service/admin")),
 	}
 }
