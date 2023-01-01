@@ -1,4 +1,4 @@
-package redisstore
+package sessions
 
 import (
 	"bytes"
@@ -8,15 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
-
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/securecookie"
-	"github.com/gorilla/sessions"
 )
 
 // Amount of time for cookies/redis keys to expire.
@@ -24,14 +21,14 @@ var sessionExpire = 86400 * 30
 
 // SessionSerializer provides an interface hook for alternative serializers
 type SessionSerializer interface {
-	Deserialize(d []byte, ss *sessions.Session) error
-	Serialize(ss *sessions.Session) ([]byte, error)
+	Deserialize(d []byte, ss *Session) error
+	Serialize(ss *Session) ([]byte, error)
 }
 
 // JSONSerializer encode the session map to JSON.
 type JSONSerializer struct{}
 
-func (s JSONSerializer) Serialize(ss *sessions.Session) ([]byte, error) {
+func (s JSONSerializer) Serialize(ss *Session) ([]byte, error) {
 	m := make(map[string]interface{}, len(ss.Values))
 	for k, v := range ss.Values {
 		ks, ok := k.(string)
@@ -44,7 +41,7 @@ func (s JSONSerializer) Serialize(ss *sessions.Session) ([]byte, error) {
 	return json.Marshal(m)
 }
 
-func (s JSONSerializer) Deserialize(d []byte, ss *sessions.Session) error {
+func (s JSONSerializer) Deserialize(d []byte, ss *Session) error {
 	m := make(map[string]interface{})
 	err := json.Unmarshal(d, &m)
 	if err != nil {
@@ -59,7 +56,7 @@ func (s JSONSerializer) Deserialize(d []byte, ss *sessions.Session) error {
 // GobSerializer uses gob package to encode the session map
 type GobSerializer struct{}
 
-func (s GobSerializer) Serialize(ss *sessions.Session) ([]byte, error) {
+func (s GobSerializer) Serialize(ss *Session) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	enc := gob.NewEncoder(buf)
 	err := enc.Encode(ss.Values)
@@ -69,7 +66,7 @@ func (s GobSerializer) Serialize(ss *sessions.Session) ([]byte, error) {
 	return nil, err
 }
 
-func (s GobSerializer) Deserialize(d []byte, ss *sessions.Session) error {
+func (s GobSerializer) Deserialize(d []byte, ss *Session) error {
 	dec := gob.NewDecoder(bytes.NewBuffer(d))
 	return dec.Decode(&ss.Values)
 }
@@ -78,8 +75,8 @@ func (s GobSerializer) Deserialize(d []byte, ss *sessions.Session) error {
 type RedisStore struct {
 	rdCmd         redis.Cmdable
 	Codecs        []securecookie.Codec
-	Options       *sessions.Options // default configuration
-	DefaultMaxAge int               // default Redis TTL for a MaxAge == 0 session
+	Options       *Options // default configuration
+	DefaultMaxAge int      // default Redis TTL for a MaxAge == 0 session
 	maxLength     int
 	keyPrefix     string
 	serializer    SessionSerializer
@@ -118,7 +115,7 @@ func NewRedisStore(rdCmd redis.Cmdable, keyPairs ...[]byte) (*RedisStore, error)
 	rs := &RedisStore{
 		rdCmd:  rdCmd,
 		Codecs: securecookie.CodecsFromPairs(keyPairs...),
-		Options: &sessions.Options{
+		Options: &Options{
 			Path:   "/",
 			MaxAge: sessionExpire,
 		},
@@ -130,86 +127,56 @@ func NewRedisStore(rdCmd redis.Cmdable, keyPairs ...[]byte) (*RedisStore, error)
 	return rs, nil
 }
 
-func (s *RedisStore) Get(r *http.Request, name string) (*sessions.Session, error) {
-	return sessions.GetRegistry(r).Get(s, name)
+func (s *RedisStore) Get(ht *khttp.Transport, name string) (*Session, error) {
+	return GetRegistry(ht).Get(s, name)
 }
 
-func (s *RedisStore) New(r *http.Request, name string) (*sessions.Session, error) {
+func (s *RedisStore) New(ht *khttp.Transport, name string) (*Session, error) {
 	var (
 		err error
 		ok  bool
 	)
-	session := sessions.NewSession(s, name)
+	session := NewSession(s, name)
 	// make a copy
 	options := *s.Options
 	session.Options = &options
 	session.IsNew = true
-	if c, errCookie := r.Cookie(name); errCookie == nil {
+	if c, errCookie := ht.Request().Cookie(name); errCookie == nil {
 		err = securecookie.DecodeMulti(name, c.Value, &session.ID, s.Codecs...)
 		if err == nil {
-			ok, err = s.load(r.Context(), session)
+			ok, err = s.load(ht.Request().Context(), session)
 			session.IsNew = !(err == nil && ok) // not new if no error and data available
 		}
 	}
 	return session, err
 }
 
-func (s *RedisStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
+func (s *RedisStore) Save(ht *khttp.Transport, session *Session) error {
 	// Marked for deletion.
 	if session.Options.MaxAge <= 0 {
-		if err := s.delete(r.Context(), session); err != nil {
+		if err := s.delete(ht.Request().Context(), session); err != nil {
 			return err
 		}
-		http.SetCookie(w, sessions.NewCookie(session.Name(), "", session.Options))
+		setCookie(ht, NewCookie(session.Name(), "", session.Options))
 	} else {
 		// Build an alphanumeric key for the redis store.
 		if session.ID == "" {
 			session.ID = strings.TrimRight(base32.StdEncoding.EncodeToString(securecookie.GenerateRandomKey(32)), "=")
 		}
-		if err := s.save(r.Context(), session); err != nil {
+		if err := s.save(ht.Request().Context(), session); err != nil {
 			return err
 		}
 		encoded, err := securecookie.EncodeMulti(session.Name(), session.ID, s.Codecs...)
 		if err != nil {
 			return err
 		}
-		http.SetCookie(w, sessions.NewCookie(session.Name(), encoded, session.Options))
+		setCookie(ht, NewCookie(session.Name(), encoded, session.Options))
 	}
 	return nil
-}
-
-func (s *RedisStore) SaveWithTransport(ctx context.Context, ht *khttp.Transport, session *sessions.Session) error {
-	// Marked for deletion.
-	if session.Options.MaxAge <= 0 {
-		if err := s.delete(ctx, session); err != nil {
-			return err
-		}
-		setCookie(ht, sessions.NewCookie(session.Name(), "", session.Options))
-	} else {
-		// Build an alphanumeric key for the redis store.
-		if session.ID == "" {
-			session.ID = strings.TrimRight(base32.StdEncoding.EncodeToString(securecookie.GenerateRandomKey(32)), "=")
-		}
-		if err := s.save(ctx, session); err != nil {
-			return err
-		}
-		encoded, err := securecookie.EncodeMulti(session.Name(), session.ID, s.Codecs...)
-		if err != nil {
-			return err
-		}
-		setCookie(ht, sessions.NewCookie(session.Name(), encoded, session.Options))
-	}
-	return nil
-}
-
-func setCookie(ht *khttp.Transport, cookie *http.Cookie) {
-	if v := cookie.String(); v != "" {
-		ht.ReplyHeader().Set("Set-Cookie", v)
-	}
 }
 
 // save stores the session in redis.
-func (s *RedisStore) save(ctx context.Context, session *sessions.Session) error {
+func (s *RedisStore) save(ctx context.Context, session *Session) error {
 	b, err := s.serializer.Serialize(session)
 	if err != nil {
 		return err
@@ -225,7 +192,7 @@ func (s *RedisStore) save(ctx context.Context, session *sessions.Session) error 
 	return err
 }
 
-func (s *RedisStore) load(ctx context.Context, session *sessions.Session) (bool, error) {
+func (s *RedisStore) load(ctx context.Context, session *Session) (bool, error) {
 	data, err := s.rdCmd.Get(ctx, s.keyPrefix+session.ID).Bytes()
 	if err != nil {
 		return false, err
@@ -236,7 +203,7 @@ func (s *RedisStore) load(ctx context.Context, session *sessions.Session) (bool,
 	return true, s.serializer.Deserialize(data, session)
 }
 
-func (s *RedisStore) delete(ctx context.Context, session *sessions.Session) error {
+func (s *RedisStore) delete(ctx context.Context, session *Session) error {
 	if err := s.rdCmd.Del(ctx, s.keyPrefix+session.ID).Err(); err != nil {
 		return err
 	}
