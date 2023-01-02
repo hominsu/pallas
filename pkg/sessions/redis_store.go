@@ -188,13 +188,13 @@ func (s *RedisStore) save(ctx context.Context, session *Session) error {
 	if age == 0 {
 		age = s.DefaultMaxAge
 	}
-	err = s.rdCmd.SetEX(ctx, s.keyPrefix+session.ID, b, time.Duration(age)).Err()
+	err = s.rdCmd.SetEX(ctx, s.keyPrefix+session.ID, b, time.Duration(age)*time.Second).Err()
 	return err
 }
 
 func (s *RedisStore) load(ctx context.Context, session *Session) (bool, error) {
 	data, err := s.rdCmd.Get(ctx, s.keyPrefix+session.ID).Bytes()
-	if err != nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		return false, err
 	}
 	if data == nil {
