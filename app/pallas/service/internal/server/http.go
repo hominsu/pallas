@@ -15,13 +15,14 @@ import (
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
 	"github.com/hominsu/pallas/app/pallas/service/internal/service"
 	"github.com/hominsu/pallas/app/pallas/service/pkgs/middleware"
-	"github.com/hominsu/pallas/pkg/redisstore"
+	"github.com/hominsu/pallas/pkg/sessions"
 )
 
 func NewSkipRoutersMatcher() selector.MatchFunc {
 	skipList := make(map[string]struct{})
-	skipList["/pallas.service.v1.UserService/signup"] = struct{}{}
-	skipList["/pallas.service.v1.UserService/signin"] = struct{}{}
+	skipList["/pallas.service.v1.SiteService/Ping"] = struct{}{}
+	skipList["/pallas.service.v1.UserService/Signup"] = struct{}{}
+	skipList["/pallas.service.v1.UserService/Signin"] = struct{}{}
 
 	return func(ctx context.Context, operation string) bool {
 		if _, ok := skipList[operation]; ok {
@@ -33,9 +34,10 @@ func NewSkipRoutersMatcher() selector.MatchFunc {
 
 func NewHTTPServer(
 	c *conf.Server,
-	store *redisstore.RedisStore,
 	ss *service.SiteService,
 	us *service.UserService,
+	as *service.AdminService,
+	store *sessions.RedisStore,
 	logger log.Logger,
 ) *http.Server {
 	opts := []http.ServerOption{
@@ -72,6 +74,7 @@ func NewHTTPServer(
 
 	v1.RegisterSiteServiceHTTPServer(srv, ss)
 	v1.RegisterUserServiceHTTPServer(srv, us)
+	v1.RegisterAdminServiceHTTPServer(srv, as)
 
 	return srv
 }

@@ -35,8 +35,7 @@ service UserService {
 
   rpc SignOut (google.protobuf.Empty) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      post: "/v1/sign-out",
-      body: "*",
+      delete: "/v1/sign-out",
     };
 
     option (openapi.v3.operation) = {
@@ -101,6 +100,7 @@ message UpdateUserRequest {
 
 message DeleteUserRequest {
   int64 id = 1;
+  string email = 2 [(validate.rules).string = {ignore_empty: true, email: true}];
 }
 
 message ListUsersRequest {

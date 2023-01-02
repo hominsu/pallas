@@ -8,7 +8,6 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/gnostic v0.6.9
 	github.com/gorilla/securecookie v1.1.1
-	github.com/gorilla/sessions v1.2.1
 	google.golang.org/genproto v0.0.0-20221207170731-23e4bf6bdc37
 	google.golang.org/grpc v1.51.0
 	google.golang.org/protobuf v1.28.1

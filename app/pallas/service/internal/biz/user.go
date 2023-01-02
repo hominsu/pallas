@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
+	"github.com/hominsu/pallas/pkg/utils"
 )
 
 type User struct {
@@ -18,7 +19,7 @@ type User struct {
 	GroupId    int64      `json:"groupId,omitempty"`
 	Email      string     `json:"email,omitempty"`
 	NickName   string     `json:"nickName,omitempty"`
-	Password   string     `json:"password,omitempty"`
+	Password   []byte     `json:"password,omitempty"`
 	Storage    uint64     `json:"storage,omitempty"`
 	Score      int64      `json:"score,omitempty"`
 	Status     UserStatus `json:"status,omitempty"`
@@ -57,8 +58,9 @@ type UserPage struct {
 type UserRepo interface {
 	Create(ctx context.Context, user *User) (*User, error)
 	Get(ctx context.Context, userId int64, userView UserView) (*User, error)
+	GetByEmail(ctx context.Context, email string, userView UserView) (*User, error)
 	Update(ctx context.Context, user *User) (*User, error)
-	Delete(ctx context.Context, userId int64) error
+	Delete(ctx context.Context, userId int64, email string) error
 	List(ctx context.Context, pageSize int, pageToken string, userView UserView) (*UserPage, error)
 	BatchCreate(ctx context.Context, users []*User) ([]*User, error)
 }
@@ -74,6 +76,53 @@ func NewUserUsecase(repo UserRepo, logger log.Logger) *UserUsecase {
 		repo: repo,
 		log:  log.NewHelper(logger),
 	}
+}
+
+func (uc *UserUsecase) Signup(ctx context.Context, email, password string) (*v1.User, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		return nil, v1.ErrorGeneratePasswordError("generate password hash error: %s", err)
+	}
+	u := &User{
+		Email:    email,
+		NickName: strings.Split(email, "@")[0],
+		Password: hashedPassword,
+		Storage:  1 * utils.GibiByte,
+		Score:    0,
+		Status:   StatusActive,
+	}
+	res, err := uc.repo.Create(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+
+	res.Password = nil
+	protoUser, err := ToProtoUser(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return protoUser, nil
+}
+
+func (uc *UserUsecase) Signin(ctx context.Context, email, password string) (*v1.User, error) {
+	res, err := uc.repo.GetByEmail(ctx, email, UserViewViewUnspecified)
+	if err != nil {
+		return nil, err
+	}
+
+	err = bcrypt.CompareHashAndPassword(res.Password, []byte(password))
+	if err == bcrypt.ErrMismatchedHashAndPassword {
+		return nil, v1.ErrorPasswordMismatch("password mismatch")
+	}
+
+	res.Password = nil
+	protoUser, err := ToProtoUser(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return protoUser, nil
 }
 
 func toUserStatus(p v1.User_Status) UserStatus {
@@ -159,29 +208,4 @@ func ToProtoUserList(u []*User) ([]*v1.User, error) {
 		pbList = append(pbList, pbUser)
 	}
 	return pbList, nil
-}
-
-func (uc *UserUsecase) Signup(ctx context.Context, email, password string) (*v1.User, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 8)
-	if err != nil {
-		return nil, v1.ErrorGeneratePasswordError("generate password hash error: %s", err)
-	}
-	u := &User{
-		Email:    email,
-		NickName: "",
-		Password: string(hashedPassword),
-		Storage:  0,
-		Score:    0,
-		Status:   StatusActive,
-	}
-	res, err := uc.repo.Create(ctx, u)
-	if err != nil {
-		return nil, err
-	}
-	res.Password = ""
-	protoUser, err := ToProtoUser(res)
-	if err != nil {
-		return nil, err
-	}
-	return protoUser, nil
 }

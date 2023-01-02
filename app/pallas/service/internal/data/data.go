@@ -15,7 +15,7 @@ import (
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/group"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/migrate"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/user"
-	"github.com/hominsu/pallas/pkg/redisstore"
+	"github.com/hominsu/pallas/pkg/sessions"
 	"github.com/hominsu/pallas/pkg/utils"
 
 	// driver
@@ -37,20 +37,18 @@ var ProviderSet = wire.NewSet(
 type Data struct {
 	db    *ent.Client
 	rdCmd redis.Cmdable
-	store *redisstore.RedisStore
 
 	conf *conf.Data
 	d    *Default
 }
 
 type Default struct {
-	groupsId []int64
+	groupsId map[string]int64
 }
 
 // NewData .
 func NewData(entClient *ent.Client,
 	rdCmd redis.Cmdable,
-	store *redisstore.RedisStore,
 	conf *conf.Data,
 	d *Default,
 	logger log.Logger,
@@ -60,7 +58,6 @@ func NewData(entClient *ent.Client,
 	data := &Data{
 		db:    entClient,
 		rdCmd: rdCmd,
-		store: store,
 		conf:  conf,
 		d:     d,
 	}
@@ -115,10 +112,11 @@ func NewRedisCmd(conf *conf.Data, logger log.Logger) redis.Cmdable {
 	return client
 }
 
-func NewRedisStore(rdCmd redis.Cmdable, conf *conf.Secret, logger log.Logger) *redisstore.RedisStore {
+func NewRedisStore(rdCmd redis.Cmdable, conf *conf.Secret, logger log.Logger) *sessions.RedisStore {
 	helper := log.NewHelper(log.With(logger, "module", "data/redis-store"))
 
-	store, err := redisstore.NewRedisStore(rdCmd, []byte(conf.Session.GetSessionKey()))
+	store, err := sessions.NewRedisStore(rdCmd, []byte(conf.Session.GetSessionKey()))
+	store.SetMaxAge(10 * 24 * 3600)
 	if err != nil {
 		helper.Fatalf("failed creating redis-store: %v", err)
 	}
@@ -138,31 +136,53 @@ func Migration(entClient *ent.Client, logger log.Logger) *Default {
 		helper.Fatalf("failed migration: %v", err)
 	} else if !ok {
 		var adminId int64
-		if res, err := createDefaultGroup(ctx, entClient); err != nil {
+		res, err := createDefaultGroup(ctx, entClient)
+		if err != nil {
 			helper.Fatalf("failed migration in create default group: %v", err)
-		} else {
-			for _, entEntity := range res {
-				if entEntity.Name == "Admin" {
-					adminId = int64(entEntity.ID)
-				}
-			}
-			if groupList, err = toGroupList(res); err != nil {
-				helper.Fatalf("internal error: %s", err)
+		}
+		for _, entEntity := range res {
+			if entEntity.Name == "Admin" {
+				adminId = int64(entEntity.ID)
 			}
 		}
-		if password, err := createDefaultUser(ctx, entClient, adminId); err != nil {
+		groupList, err = toGroupList(res)
+		if err != nil {
+			helper.Fatalf("internal error: %s", err)
+		}
+
+		password, err := createDefaultUser(ctx, entClient, adminId)
+		if err != nil {
 			helper.Fatalf("failed migration in create default user: %v", err)
-		} else {
-			helper.Infof("========= default user: %s, password: %s ==========", "admin@pallas.icu", password)
+		}
+		helper.Infof("========= default user: %s, password: %s ==========", "admin@pallas.icu", password)
+	} else {
+		res, err := getDefaultGroup(ctx, entClient)
+		if err != nil {
+			helper.Fatalf("failed migration in get default group: %v", err)
+		}
+		groupList, err = toGroupList(res)
+		if err != nil {
+			helper.Fatalf("internal error: %s", err)
 		}
 	}
 
 	d := &Default{}
-	for _, group := range groupList {
-		d.groupsId = append(d.groupsId, group.Id)
+	d.groupsId = make(map[string]int64)
+	for _, g := range groupList {
+		d.groupsId[g.Name] = g.Id
 	}
 
 	return d
+}
+
+func getDefaultGroup(ctx context.Context, client *ent.Client) ([]*ent.Group, error) {
+	groups, err := client.Group.Query().
+		Where(group.NameIn("Admin", "User", "Anonymous")).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return groups, nil
 }
 
 func createDefaultGroup(ctx context.Context, client *ent.Client) ([]*ent.Group, error) {
@@ -207,7 +227,7 @@ func createDefaultUser(ctx context.Context, client *ent.Client, adminId int64) (
 	err = client.User.Create().
 		SetEmail("admin@pallas.icu").
 		SetNickName("admin").
-		SetPasswordHash(string(hashedPassword)).
+		SetPasswordHash(hashedPassword).
 		SetStorage(1 * utils.GibiByte).
 		SetScore(0).
 		SetStatus(user.StatusActive).

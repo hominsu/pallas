@@ -34,7 +34,7 @@ func (User) Fields() []ent.Field {
 			Annotations(entproto.Field(3)),
 		field.String("nick_name").
 			Annotations(entproto.Field(4)),
-		field.String("password_hash").
+		field.Bytes("password_hash").
 			Sensitive().
 			Annotations(entproto.Field(5)),
 		field.Uint64("storage").

@@ -3,10 +3,12 @@ package data
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/go-kratos/kratos/v2/log"
+	"golang.org/x/sync/singleflight"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
 	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
@@ -20,6 +22,7 @@ var _ biz.UserRepo = (*userRepo)(nil)
 
 type userRepo struct {
 	data *Data
+	sg   *singleflight.Group
 	log  *log.Helper
 }
 
@@ -27,44 +30,9 @@ type userRepo struct {
 func NewUserRepo(data *Data, logger log.Logger) biz.UserRepo {
 	return &userRepo{
 		data: data,
+		sg:   &singleflight.Group{},
 		log:  log.NewHelper(log.With(logger, "module", "data/user")),
 	}
-}
-
-func toUserStatus(e user.Status) biz.UserStatus { return biz.UserStatus(e) }
-
-func toEntUserStatus(u biz.UserStatus) user.Status { return user.Status(u) }
-
-func toUser(e *ent.User) (*biz.User, error) {
-	u := &biz.User{}
-	u.Id = int64(e.ID)
-	u.Email = e.Email
-	u.NickName = e.NickName
-	u.Password = e.PasswordHash
-	u.Storage = e.Storage
-	u.Score = int64(e.Score)
-	u.Status = toUserStatus(e.Status)
-	u.CreateAt = e.CreatedAt
-	u.UpdateAt = e.UpdatedAt
-	if edg := e.Edges.OwnerGroup; edg != nil {
-		u.OwnerGroup = &biz.Group{
-			Id:   int64(edg.ID),
-			Name: edg.Name,
-		}
-	}
-	return u, nil
-}
-
-func toUserList(e []*ent.User) ([]*biz.User, error) {
-	var userList []*biz.User
-	for _, entEntity := range e {
-		user, err := toUser(entEntity)
-		if err != nil {
-			return nil, errors.New("convert to userList error")
-		}
-		userList = append(userList, user)
-	}
-	return userList, nil
 }
 
 func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error) {
@@ -93,31 +61,96 @@ func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error
 func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView) (*biz.User, error) {
 	var (
 		err error
-		get *ent.User
+		res interface{}
 	)
 	id := int(userId)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
-		get, err = r.data.db.User.Get(ctx, id)
+		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d", userId),
+			func() (interface{}, error) {
+				get, err := r.data.db.User.Get(ctx, id)
+				switch {
+				case err == nil:
+					return toUser(get)
+				case ent.IsNotFound(err):
+					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				default:
+					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+				}
+			})
 	case biz.UserViewWithEdgeIds:
-		get, err = r.data.db.User.Query().
-			Where(user.ID(id)).
-			WithOwnerGroup(func(query *ent.GroupQuery) {
-				query.Select(group.FieldID)
-				query.Select(group.FieldName)
-			}).
-			Only(ctx)
+		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d_with_edge_ids", userId),
+			func() (interface{}, error) {
+				get, err := r.data.db.User.Query().
+					Where(user.ID(id)).
+					WithOwnerGroup(func(query *ent.GroupQuery) {
+						query.Select(group.FieldID)
+						query.Select(group.FieldName)
+					}).
+					Only(ctx)
+				switch {
+				case err == nil:
+					return toUser(get)
+				case ent.IsNotFound(err):
+					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				default:
+					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+				}
+			})
 	default:
 		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
 	}
-	switch {
-	case err == nil:
-		return toUser(get)
-	case ent.IsNotFound(err):
-		return nil, v1.ErrorNotFoundError("not found: %s", err)
-	default:
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+	if err != nil {
+		return nil, err
 	}
+	return res.(*biz.User), nil
+}
+
+func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.UserView) (*biz.User, error) {
+	var (
+		err error
+		res interface{}
+	)
+	switch userView {
+	case biz.UserViewViewUnspecified, biz.UserViewBasic:
+		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_email_%s", email),
+			func() (interface{}, error) {
+				get, err := r.data.db.User.Query().Where(user.EmailEQ(email)).Only(ctx)
+				switch {
+				case err == nil:
+					return toUser(get)
+				case ent.IsNotFound(err):
+					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				default:
+					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+				}
+			})
+	case biz.UserViewWithEdgeIds:
+		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_email_%s_with_edge_ids", email),
+			func() (interface{}, error) {
+				get, err := r.data.db.User.Query().
+					Where(user.EmailEQ(email)).
+					WithOwnerGroup(func(query *ent.GroupQuery) {
+						query.Select(group.FieldID)
+						query.Select(group.FieldName)
+					}).
+					Only(ctx)
+				switch {
+				case err == nil:
+					return toUser(get)
+				case ent.IsNotFound(err):
+					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				default:
+					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+				}
+			})
+	default:
+		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return res.(*biz.User), nil
 }
 
 func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error) {
@@ -135,6 +168,7 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
+		r.forgetUser(int64(res.ID), res.Email)
 		u, err := toUser(res)
 		if err != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", err)
@@ -150,11 +184,11 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	}
 }
 
-func (r *userRepo) Delete(ctx context.Context, userId int64) error {
-	var err error
-	err = r.data.db.User.DeleteOneID(int(userId)).Exec(ctx)
+func (r *userRepo) Delete(ctx context.Context, userId int64, email string) error {
+	err := r.data.db.User.DeleteOneID(int(userId)).Exec(ctx)
 	switch {
 	case err == nil:
+		r.forgetUser(userId, email)
 		return nil
 	case ent.IsNotFound(err):
 		return v1.ErrorNotFoundError("not found: %s", err)
@@ -252,6 +286,7 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 	m.SetStorage(user.Storage)
 	m.SetScore(int(user.Score))
 	m.SetStatus(toEntUserStatus(user.Status))
+	m.SetOwnerGroupID(int(r.data.d.groupsId["User"]))
 	now := time.Now()
 	m.SetCreatedAt(now)
 	m.SetUpdatedAt(now)
@@ -259,4 +294,47 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
 	}
 	return m, nil
+}
+
+func (r *userRepo) forgetUser(userId int64, email string) {
+	r.sg.Forget(fmt.Sprintf("get_user_by_id_%d", userId))
+	r.sg.Forget(fmt.Sprintf("get_user_by_id_%d_with_edge_ids", userId))
+	r.sg.Forget(fmt.Sprintf("get_user_by_email_%s", email))
+	r.sg.Forget(fmt.Sprintf("get_user_by_email_%s_with_edge_ids", email))
+}
+
+func toUserStatus(e user.Status) biz.UserStatus { return biz.UserStatus(e) }
+
+func toEntUserStatus(u biz.UserStatus) user.Status { return user.Status(u) }
+
+func toUser(e *ent.User) (*biz.User, error) {
+	u := &biz.User{}
+	u.Id = int64(e.ID)
+	u.Email = e.Email
+	u.NickName = e.NickName
+	u.Password = e.PasswordHash
+	u.Storage = e.Storage
+	u.Score = int64(e.Score)
+	u.Status = toUserStatus(e.Status)
+	u.CreateAt = e.CreatedAt
+	u.UpdateAt = e.UpdatedAt
+	if edg := e.Edges.OwnerGroup; edg != nil {
+		u.OwnerGroup = &biz.Group{
+			Id:   int64(edg.ID),
+			Name: edg.Name,
+		}
+	}
+	return u, nil
+}
+
+func toUserList(e []*ent.User) ([]*biz.User, error) {
+	var userList []*biz.User
+	for _, entEntity := range e {
+		user, err := toUser(entEntity)
+		if err != nil {
+			return nil, errors.New("convert to userList error")
+		}
+		userList = append(userList, user)
+	}
+	return userList, nil
 }

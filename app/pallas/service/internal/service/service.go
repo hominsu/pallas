@@ -6,6 +6,7 @@ import (
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
 	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
+	"github.com/hominsu/pallas/pkg/sessions"
 )
 
 // ProviderSet is service providers.
@@ -32,14 +33,16 @@ func NewSiteService(version string, logger log.Logger) *SiteService {
 type UserService struct {
 	v1.UnimplementedUserServiceServer
 
-	uu  *biz.UserUsecase
-	log *log.Helper
+	store *sessions.RedisStore
+	uu    *biz.UserUsecase
+	log   *log.Helper
 }
 
-func NewUserService(uu *biz.UserUsecase, logger log.Logger) *UserService {
+func NewUserService(store *sessions.RedisStore, uu *biz.UserUsecase, logger log.Logger) *UserService {
 	return &UserService{
-		uu:  uu,
-		log: log.NewHelper(log.With(logger, "module", "service/user")),
+		store: store,
+		uu:    uu,
+		log:   log.NewHelper(log.With(logger, "module", "service/user")),
 	}
 }
 
