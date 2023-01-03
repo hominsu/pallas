@@ -3,10 +3,12 @@ package data
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/go-kratos/kratos/v2/log"
+	"golang.org/x/sync/singleflight"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
 	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
@@ -20,42 +22,15 @@ var _ biz.GroupRepo = (*groupRepo)(nil)
 
 type groupRepo struct {
 	data *Data
+	sg   *singleflight.Group
 	log  *log.Helper
-}
-
-func toGroup(e *ent.Group) (*biz.Group, error) {
-	g := &biz.Group{}
-	g.Id = int64(e.ID)
-	g.Name = e.Name
-	g.MaxStorage = e.MaxStorage
-	g.ShareEnable = e.ShareEnabled
-	g.SpeedLimit = int64(e.SpeedLimit)
-	for _, edg := range e.Edges.Users {
-		g.Users = append(g.Users, &biz.User{
-			Id:       int64(edg.ID),
-			NickName: edg.NickName,
-			Status:   toUserStatus(edg.Status),
-		})
-	}
-	return g, nil
-}
-
-func toGroupList(e []*ent.Group) ([]*biz.Group, error) {
-	var groupList []*biz.Group
-	for _, entEntity := range e {
-		group, err := toGroup(entEntity)
-		if err != nil {
-			return nil, errors.New("convert to groupList error")
-		}
-		groupList = append(groupList, group)
-	}
-	return groupList, nil
 }
 
 // NewGroupRepo .
 func NewGroupRepo(data *Data, logger log.Logger) biz.GroupRepo {
 	return &groupRepo{
 		data: data,
+		sg:   &singleflight.Group{},
 		log:  log.NewHelper(log.With(logger, "module", "data/group")),
 	}
 }
@@ -86,32 +61,50 @@ func (r *groupRepo) Create(ctx context.Context, group *biz.Group) (*biz.Group, e
 func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupView) (*biz.Group, error) {
 	var (
 		err error
-		get *ent.Group
+		res interface{}
 	)
 	id := int(groupId)
 	switch groupView {
 	case biz.GroupViewViewUnspecified, biz.GroupViewBasic:
-		get, err = r.data.db.Group.Get(ctx, id)
+		res, err, _ = r.sg.Do(fmt.Sprintf("get_group_by_id_%d", id),
+			func() (interface{}, error) {
+				get, err := r.data.db.Group.Get(ctx, id)
+				switch {
+				case err == nil:
+					return toGroup(get)
+				case ent.IsNotFound(err):
+					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				default:
+					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+				}
+			})
 	case biz.GroupViewWithEdgeIds:
-		get, err = r.data.db.Group.Query().
-			Where(group.ID(id)).
-			WithUsers(func(query *ent.UserQuery) {
-				query.Select(user.FieldID)
-				query.Select(user.FieldNickName)
-				query.Select(user.FieldStatus)
-			}).
-			Only(ctx)
+		res, err, _ = r.sg.Do(fmt.Sprintf("get_group_by_id_%d_with_edge_ids", id),
+			func() (interface{}, error) {
+				get, err := r.data.db.Group.Query().
+					Where(group.ID(id)).
+					WithUsers(func(query *ent.UserQuery) {
+						query.Select(user.FieldID)
+						query.Select(user.FieldNickName)
+						query.Select(user.FieldStatus)
+					}).
+					Only(ctx)
+				switch {
+				case err == nil:
+					return toGroup(get)
+				case ent.IsNotFound(err):
+					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				default:
+					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+				}
+			})
 	default:
 		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
 	}
-	switch {
-	case err == nil:
-		return toGroup(get)
-	case ent.IsNotFound(err):
-		return nil, v1.ErrorNotFoundError("not found: %s", err)
-	default:
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+	if err != nil {
+		return nil, err
 	}
+	return res.(*biz.Group), nil
 }
 
 func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, error) {
@@ -121,12 +114,13 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 	m.SetShareEnabled(group.ShareEnable)
 	m.SetSpeedLimit(int(group.SpeedLimit))
 	m.SetUpdatedAt(time.Now())
-	for _, user := range group.Users {
-		m.AddUserIDs(int(user.Id))
+	for _, u := range group.Users {
+		m.AddUserIDs(int(u.Id))
 	}
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
+		r.forgetGroup(res.ID)
 		g, err := toGroup(res)
 		if err != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", err)
@@ -144,9 +138,11 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 
 func (r *groupRepo) Delete(ctx context.Context, groupId int64) error {
 	var err error
-	err = r.data.db.Group.DeleteOneID(int(groupId)).Exec(ctx)
+	id := int(groupId)
+	err = r.data.db.Group.DeleteOneID(id).Exec(ctx)
 	switch {
 	case err == nil:
+		r.forgetGroup(id)
 		return nil
 	case ent.IsNotFound(err):
 		return v1.ErrorNotFoundError("not found: %s", err)
@@ -212,9 +208,9 @@ func (r *groupRepo) BatchCreate(ctx context.Context, groups []*biz.Group) ([]*bi
 		return nil, v1.ErrorInvalidArgument("batch size cannot be greater than %d", biz.MaxBatchCreateSize)
 	}
 	bulk := make([]*ent.GroupCreate, len(groups))
-	for i, group := range groups {
+	for i, g := range groups {
 		var err error
-		bulk[i], err = r.createBuilder(group)
+		bulk[i], err = r.createBuilder(g)
 		if err != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", err)
 		}
@@ -246,8 +242,42 @@ func (r *groupRepo) createBuilder(group *biz.Group) (*ent.GroupCreate, error) {
 	now := time.Now()
 	m.SetCreatedAt(now)
 	m.SetUpdatedAt(now)
-	for _, user := range group.Users {
-		m.AddUserIDs(int(user.Id))
+	for _, u := range group.Users {
+		m.AddUserIDs(int(u.Id))
 	}
 	return m, nil
+}
+
+func (r *groupRepo) forgetGroup(groupId int) {
+	r.sg.Forget(fmt.Sprintf("get_group_by_id_%d", groupId))
+	r.sg.Forget(fmt.Sprintf("get_group_by_id_%d_with_edge_ids", groupId))
+}
+
+func toGroup(e *ent.Group) (*biz.Group, error) {
+	g := &biz.Group{}
+	g.Id = int64(e.ID)
+	g.Name = e.Name
+	g.MaxStorage = e.MaxStorage
+	g.ShareEnable = e.ShareEnabled
+	g.SpeedLimit = int64(e.SpeedLimit)
+	for _, edg := range e.Edges.Users {
+		g.Users = append(g.Users, &biz.User{
+			Id:       int64(edg.ID),
+			NickName: edg.NickName,
+			Status:   toUserStatus(edg.Status),
+		})
+	}
+	return g, nil
+}
+
+func toGroupList(e []*ent.Group) ([]*biz.Group, error) {
+	var groupList []*biz.Group
+	for _, entEntity := range e {
+		g, err := toGroup(entEntity)
+		if err != nil {
+			return nil, errors.New("convert to groupList error")
+		}
+		groupList = append(groupList, g)
+	}
+	return groupList, nil
 }

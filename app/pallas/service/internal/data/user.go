@@ -66,7 +66,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 	id := int(userId)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
-		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d", userId),
+		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d", id),
 			func() (interface{}, error) {
 				get, err := r.data.db.User.Get(ctx, id)
 				switch {
@@ -79,7 +79,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 				}
 			})
 	case biz.UserViewWithEdgeIds:
-		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d_with_edge_ids", userId),
+		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d_with_edge_ids", id),
 			func() (interface{}, error) {
 				get, err := r.data.db.User.Query().
 					Where(user.ID(id)).
@@ -168,7 +168,7 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		r.forgetUser(int64(res.ID), res.Email)
+		r.forgetUser(res.ID, res.Email)
 		u, err := toUser(res)
 		if err != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", err)
@@ -185,10 +185,11 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 }
 
 func (r *userRepo) Delete(ctx context.Context, userId int64, email string) error {
-	err := r.data.db.User.DeleteOneID(int(userId)).Exec(ctx)
+	id := int(userId)
+	err := r.data.db.User.DeleteOneID(id).Exec(ctx)
 	switch {
 	case err == nil:
-		r.forgetUser(userId, email)
+		r.forgetUser(id, email)
 		return nil
 	case ent.IsNotFound(err):
 		return v1.ErrorNotFoundError("not found: %s", err)
@@ -269,7 +270,7 @@ func (r *userRepo) BatchCreate(ctx context.Context, users []*biz.User) ([]*biz.U
 		}
 		return userList, nil
 	case sqlgraph.IsUniqueConstraintError(err):
-		return nil, v1.ErrorAlreadyExistsError("u already exists: %s", err)
+		return nil, v1.ErrorAlreadyExistsError("user already exists: %s", err)
 	case ent.IsConstraintError(err):
 		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
 	default:
@@ -296,7 +297,7 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 	return m, nil
 }
 
-func (r *userRepo) forgetUser(userId int64, email string) {
+func (r *userRepo) forgetUser(userId int, email string) {
 	r.sg.Forget(fmt.Sprintf("get_user_by_id_%d", userId))
 	r.sg.Forget(fmt.Sprintf("get_user_by_id_%d_with_edge_ids", userId))
 	r.sg.Forget(fmt.Sprintf("get_user_by_email_%s", email))
