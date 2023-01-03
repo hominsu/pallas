@@ -5,10 +5,10 @@ server:
 data:
   database:
     driver: mysql
-    source: root:dangerous@tcp(docker.for.mac.host.internal:3306)/pallas?charset=utf8mb4&parseTime=True&loc=Local
+    source: root:dangerous@tcp(127.0.0.1:3306)/pallas?charset=utf8mb4&parseTime=True&loc=Local
   redis:
-    addr: docker.for.mac.host.internal:6379
-    password: redis-password
+    addr: 127.0.0.1:6379
+    password:
     db: 0
     cache_expiration: 1800s
     read_timeout: 0.2s
