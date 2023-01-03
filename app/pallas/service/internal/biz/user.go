@@ -19,7 +19,7 @@ type User struct {
 	GroupId    int64      `json:"groupId,omitempty"`
 	Email      string     `json:"email,omitempty"`
 	NickName   string     `json:"nickName,omitempty"`
-	Password   []byte     `json:"password,omitempty"`
+	Password   string     `json:"password,omitempty"`
 	Storage    uint64     `json:"storage,omitempty"`
 	Score      int64      `json:"score,omitempty"`
 	Status     UserStatus `json:"status,omitempty"`
@@ -86,7 +86,7 @@ func (uc *UserUsecase) Signup(ctx context.Context, email, password string) (*v1.
 	u := &User{
 		Email:    email,
 		NickName: strings.Split(email, "@")[0],
-		Password: hashedPassword,
+		Password: string(hashedPassword),
 		Storage:  1 * utils.GibiByte,
 		Score:    0,
 		Status:   StatusActive,
@@ -96,7 +96,7 @@ func (uc *UserUsecase) Signup(ctx context.Context, email, password string) (*v1.
 		return nil, err
 	}
 
-	res.Password = nil
+	res.Password = ""
 	protoUser, err := ToProtoUser(res)
 	if err != nil {
 		return nil, err
@@ -111,18 +111,61 @@ func (uc *UserUsecase) Signin(ctx context.Context, email, password string) (*v1.
 		return nil, err
 	}
 
-	err = bcrypt.CompareHashAndPassword(res.Password, []byte(password))
+	err = bcrypt.CompareHashAndPassword([]byte(res.Password), []byte(password))
 	if err == bcrypt.ErrMismatchedHashAndPassword {
 		return nil, v1.ErrorPasswordMismatch("password mismatch")
 	}
 
-	res.Password = nil
+	res.Password = ""
 	protoUser, err := ToProtoUser(res)
 	if err != nil {
 		return nil, err
 	}
 
 	return protoUser, nil
+}
+
+func (uc *UserUsecase) GetUser(ctx context.Context, userId int64) (*v1.User, error) {
+	res, err := uc.repo.Get(ctx, userId, UserViewWithEdgeIds)
+	if err != nil {
+		return nil, err
+	}
+
+	res.Password = ""
+	protoUser, err := ToProtoUser(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return protoUser, nil
+}
+
+func (uc *UserUsecase) UpdateUser(ctx context.Context, user *User) (*v1.User, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
+	if err != nil {
+		return nil, v1.ErrorGeneratePasswordError("generate password hash error: %s", err)
+	}
+
+	user.Password = string(hashedPassword)
+	res, err := uc.repo.Update(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	res.Password = ""
+	protoUser, err := ToProtoUser(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return protoUser, nil
+}
+
+func (uc *UserUsecase) DeleteUser(ctx context.Context, userId int64, email string) error {
+	if err := uc.repo.Delete(ctx, userId, email); err != nil {
+		return err
+	}
+	return nil
 }
 
 func toUserStatus(p v1.User_Status) UserStatus {

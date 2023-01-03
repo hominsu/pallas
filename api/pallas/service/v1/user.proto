@@ -61,12 +61,6 @@ service UserService {
       delete: "/v1/users/{id}",
     };
   };
-
-  rpc ListUsers (ListUsersRequest) returns (ListUsersReply) {
-    option (google.api.http) = {
-      get: "/v1/users",
-    };
-  };
 }
 
 message SignupRequest {
@@ -101,21 +95,4 @@ message UpdateUserRequest {
 message DeleteUserRequest {
   int64 id = 1;
   string email = 2 [(validate.rules).string = {ignore_empty: true, email: true}];
-}
-
-message ListUsersRequest {
-  int32 page_size = 1 [(validate.rules).int32 = {gt:0}];
-  string page_token = 2;
-  View view = 3;
-
-  enum View {
-    VIEW_UNSPECIFIED = 0;
-    BASIC = 1;
-    WITH_EDGE_IDS = 2;
-  }
-}
-
-message ListUsersReply {
-  repeated User users = 1;
-  string next_page_token = 2;
 }

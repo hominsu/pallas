@@ -5,11 +5,10 @@ import (
 
 	"github.com/go-kratos/kratos/v2/transport"
 	"github.com/go-kratos/kratos/v2/transport/http"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
+	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
 )
 
 func (s *UserService) Signup(ctx context.Context, req *v1.SignupRequest) (*v1.User, error) {
@@ -46,24 +45,9 @@ func (s *UserService) Signin(ctx context.Context, req *v1.SigninRequest) (*v1.Si
 func (s *UserService) SignOut(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
 	if tr, ok := transport.FromServerContext(ctx); ok {
 		if ht, ok := tr.(*http.Transport); ok {
-			v := ctx.Value("userid")
-			if v == nil {
-				return nil, v1.ErrorSessionError("session missed")
-			}
-			id, ok := v.(int64)
-			if !ok {
-				return nil, v1.ErrorInternalError("transport error")
-			}
 			session, err := s.store.Get(ht, "pallas-session")
 			if err != nil {
 				return nil, v1.ErrorSessionError("get session error: %v", err)
-			}
-			userid, ok := session.Values["userid"].(int64)
-			if !ok {
-				return nil, v1.ErrorInternalError("transport error")
-			}
-			if userid != id {
-				return nil, v1.ErrorUserMismatch("userid mismatch")
 			}
 			session.Options.MaxAge = -1
 			if err = session.Save(ht); err != nil {
@@ -76,17 +60,60 @@ func (s *UserService) SignOut(ctx context.Context, _ *emptypb.Empty) (*emptypb.E
 }
 
 func (s *UserService) GetUser(ctx context.Context, req *v1.GetUserRequest) (*v1.User, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
+	if err := checkUserId(ctx, req.GetId()); err != nil {
+		return nil, err
+	}
+	res, err := s.uu.GetUser(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, req *v1.UpdateUserRequest) (*v1.User, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
+	if err := checkUserId(ctx, req.GetUser().GetId()); err != nil {
+		return nil, err
+	}
+	user, err := biz.ToUser(req.GetUser())
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.uu.UpdateUser(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, req *v1.DeleteUserRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
+	if err := checkUserId(ctx, req.GetId()); err != nil {
+		return nil, err
+	}
+	if err := s.uu.DeleteUser(ctx, req.GetId(), req.GetEmail()); req != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
 }
 
-func (s *UserService) ListUsers(ctx context.Context, req *v1.ListUsersRequest) (*v1.ListUsersReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
+func getUserId(ctx context.Context) (int64, error) {
+	v := ctx.Value("userid")
+	if v == nil {
+		return 0, v1.ErrorSessionError("session missed")
+	}
+	id, ok := v.(int64)
+	if !ok {
+		return 0, v1.ErrorInternalError("internal error")
+	}
+	return id, nil
+}
+
+func checkUserId(ctx context.Context, userId int64) error {
+	id, err := getUserId(ctx)
+	if err != nil {
+		return err
+	}
+	if userId != id {
+		return v1.ErrorUserMismatch("userid mismatch")
+	}
+	return nil
 }

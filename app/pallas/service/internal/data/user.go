@@ -157,7 +157,7 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	m := r.data.db.User.UpdateOneID(int(user.Id))
 	m.SetEmail(user.Email)
 	m.SetNickName(user.NickName)
-	m.SetPasswordHash(user.Password)
+	m.SetPasswordHash([]byte(user.Password))
 	m.SetStorage(user.Storage)
 	m.SetScore(int(user.Score))
 	m.SetStatus(toEntUserStatus(user.Status))
@@ -253,9 +253,9 @@ func (r *userRepo) BatchCreate(ctx context.Context, users []*biz.User) ([]*biz.U
 		return nil, v1.ErrorInvalidArgument("batch size cannot be greater than %d", biz.MaxBatchCreateSize)
 	}
 	bulk := make([]*ent.UserCreate, len(users))
-	for i, user := range users {
+	for i, u := range users {
 		var err error
-		bulk[i], err = r.createBuilder(user)
+		bulk[i], err = r.createBuilder(u)
 		if err != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", err)
 		}
@@ -269,7 +269,7 @@ func (r *userRepo) BatchCreate(ctx context.Context, users []*biz.User) ([]*biz.U
 		}
 		return userList, nil
 	case sqlgraph.IsUniqueConstraintError(err):
-		return nil, v1.ErrorAlreadyExistsError("user already exists: %s", err)
+		return nil, v1.ErrorAlreadyExistsError("u already exists: %s", err)
 	case ent.IsConstraintError(err):
 		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
 	default:
@@ -282,7 +282,7 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 	m := r.data.db.User.Create()
 	m.SetEmail(user.Email)
 	m.SetNickName(user.NickName)
-	m.SetPasswordHash(user.Password)
+	m.SetPasswordHash([]byte(user.Password))
 	m.SetStorage(user.Storage)
 	m.SetScore(int(user.Score))
 	m.SetStatus(toEntUserStatus(user.Status))
@@ -312,7 +312,7 @@ func toUser(e *ent.User) (*biz.User, error) {
 	u.Id = int64(e.ID)
 	u.Email = e.Email
 	u.NickName = e.NickName
-	u.Password = e.PasswordHash
+	u.Password = string(e.PasswordHash)
 	u.Storage = e.Storage
 	u.Score = int64(e.Score)
 	u.Status = toUserStatus(e.Status)
@@ -330,11 +330,11 @@ func toUser(e *ent.User) (*biz.User, error) {
 func toUserList(e []*ent.User) ([]*biz.User, error) {
 	var userList []*biz.User
 	for _, entEntity := range e {
-		user, err := toUser(entEntity)
+		u, err := toUser(entEntity)
 		if err != nil {
 			return nil, errors.New("convert to userList error")
 		}
-		userList = append(userList, user)
+		userList = append(userList, u)
 	}
 	return userList, nil
 }
