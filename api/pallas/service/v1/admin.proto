@@ -10,6 +10,12 @@ import "validate/validate.proto";
 option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
 
 service AdminService {
+  rpc ListUsers (ListUsersRequest) returns (ListUsersReply) {
+    option (google.api.http) = {
+      get: "/v1/admin/users",
+    };
+  };
+
   rpc CreateGroup (CreateGroupRequest) returns (Group) {
     option (google.api.http) = {
       post: "/v1/admin/groups",
@@ -41,6 +47,23 @@ service AdminService {
       get: "/v1/admin/groups",
     };
   };
+}
+
+message ListUsersRequest {
+  int32 page_size = 1 [(validate.rules).int32 = {gt:0}];
+  string page_token = 2;
+  View view = 3;
+
+  enum View {
+    VIEW_UNSPECIFIED = 0;
+    BASIC = 1;
+    WITH_EDGE_IDS = 2;
+  }
+}
+
+message ListUsersReply {
+  repeated User users = 1;
+  string next_page_token = 2;
 }
 
 message CreateGroupRequest {
