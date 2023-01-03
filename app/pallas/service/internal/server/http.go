@@ -46,7 +46,11 @@ func NewHTTPServer(
 			logging.Server(logger),
 			middleware.Info(),
 			selector.Server(
-				middleware.Session(store, "pallas-session"),
+				middleware.Session(
+					store,
+					"pallas-session",
+					log.NewHelper(log.With(logger, "module", "middleware/session")),
+				),
 			).
 				Match(NewSkipRoutersMatcher()).
 				Build(),

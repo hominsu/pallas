@@ -38,7 +38,11 @@ type UserService struct {
 	log   *log.Helper
 }
 
-func NewUserService(store *sessions.RedisStore, uu *biz.UserUsecase, logger log.Logger) *UserService {
+func NewUserService(
+	store *sessions.RedisStore,
+	uu *biz.UserUsecase,
+	logger log.Logger,
+) *UserService {
 	return &UserService{
 		store: store,
 		uu:    uu,
@@ -49,13 +53,22 @@ func NewUserService(store *sessions.RedisStore, uu *biz.UserUsecase, logger log.
 type AdminService struct {
 	v1.UnimplementedAdminServiceServer
 
-	gu  *biz.GroupUsecase
-	log *log.Helper
+	store *sessions.RedisStore
+	gu    *biz.GroupUsecase
+	uu    *biz.UserUsecase
+	log   *log.Helper
 }
 
-func NewAdminService(gu *biz.GroupUsecase, logger log.Logger) *AdminService {
+func NewAdminService(
+	store *sessions.RedisStore,
+	gu *biz.GroupUsecase,
+	uu *biz.UserUsecase,
+	logger log.Logger,
+) *AdminService {
 	return &AdminService{
-		gu:  gu,
-		log: log.NewHelper(log.With(logger, "module", "service/admin")),
+		store: store,
+		gu:    gu,
+		uu:    uu,
+		log:   log.NewHelper(log.With(logger, "module", "service/admin")),
 	}
 }
