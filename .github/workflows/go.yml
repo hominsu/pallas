@@ -42,6 +42,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Install dependencies
+        run: |
+          apk add --no-cache bash build-base findutils git protobuf protobuf-dev tar
+
       - uses: actions/cache@v3
         with:
           path: |
@@ -51,10 +55,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Install dependencies
-        run: |
-          apk add --no-cache bash build-base findutils git protobuf protobuf-dev tar
-
       - name: Generate
         run: |
           make init
@@ -63,5 +63,7 @@ jobs:
           make generate
           make wire
 
+      # TODO: fix "not a git repository"
       - name: Build
-        run: make build
+        run: |
+          make build
