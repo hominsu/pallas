@@ -3,7 +3,7 @@ version: '3.4'
 services:
   mysql:
     restart: always
-    image: mysql:8.0-oracle
+    image: mysql:latest
     container_name: mysql
     volumes:
       - ./mysql/mysql:/var/lib/mysql
