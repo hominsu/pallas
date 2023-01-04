@@ -11,11 +11,11 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        go: [ 1.19 ]
     name: build & test
     runs-on: ubuntu-latest
+    container:
+      image: golang:alpine
+      options: --user root
     services:
       mysql:
         image: mysql:latest
@@ -42,10 +42,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Go
-        uses: actions/setup-go@v3
+      - uses: actions/cache@v3
         with:
-          go-version: ${{ matrix.go }}
+          path: |
+            ~/.cache/go-build
+            /go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.work.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install dependencies
+        run: |
+          apk add --no-cache bash build-base findutils git protobuf protobuf-dev
+
+      - name: Generate
+        run: |
+          make init
+          make api
+          make conf
+          make generate
+          make wire
 
       - name: Build
         run: make build
