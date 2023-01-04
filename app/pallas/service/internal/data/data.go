@@ -43,7 +43,8 @@ type Data struct {
 }
 
 type Default struct {
-	groupsId map[string]int64
+	GroupsId map[string]int64
+	AdminsId map[int64]struct{}
 }
 
 // NewData .
@@ -130,7 +131,10 @@ func Migration(entClient *ent.Client, logger log.Logger) *Default {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	var groupList []*biz.Group
+	var (
+		groupList []*biz.Group
+		adminList []*biz.User
+	)
 
 	if ok, err := entClient.Group.Query().Where(group.NameEQ("Admin")).Exist(ctx); err != nil {
 		helper.Fatalf("failed migration: %v", err)
@@ -166,10 +170,23 @@ func Migration(entClient *ent.Client, logger log.Logger) *Default {
 		}
 	}
 
+	res, err := getAdminUsers(ctx, entClient)
+	if err != nil {
+		helper.Fatalf("failed migration in get admin user: %v", err)
+	}
+	adminList, err = toUserList(res)
+	if err != nil {
+		helper.Fatalf("internal error: %s", err)
+	}
+
 	d := &Default{}
-	d.groupsId = make(map[string]int64)
+	d.GroupsId = make(map[string]int64)
 	for _, g := range groupList {
-		d.groupsId[g.Name] = g.Id
+		d.GroupsId[g.Name] = g.Id
+	}
+	d.AdminsId = make(map[int64]struct{})
+	for _, ad := range adminList {
+		d.AdminsId[ad.Id] = struct{}{}
 	}
 
 	return d
@@ -183,6 +200,16 @@ func getDefaultGroup(ctx context.Context, client *ent.Client) ([]*ent.Group, err
 		return nil, err
 	}
 	return groups, nil
+}
+
+func getAdminUsers(ctx context.Context, client *ent.Client) ([]*ent.User, error) {
+	users, err := client.User.Query().WithOwnerGroup(func(query *ent.GroupQuery) {
+		query.Where(group.NameEQ("Admin"))
+	}).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
 func createDefaultGroup(ctx context.Context, client *ent.Client) ([]*ent.Group, error) {
