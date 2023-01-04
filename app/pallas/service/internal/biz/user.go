@@ -168,6 +168,23 @@ func (uc *UserUsecase) DeleteUser(ctx context.Context, userId int64, email strin
 	return nil
 }
 
+func (uc *UserUsecase) ListUsers(ctx context.Context, pageSize int, pageToken string, view UserView) ([]*v1.User, string, error) {
+	page, err := uc.repo.List(ctx, pageSize, pageToken, view)
+	if err != nil {
+		return nil, "", err
+	}
+
+	for _, u := range page.Users {
+		u.Password = ""
+	}
+	protoUsers, err := ToProtoUserList(page.Users)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return protoUsers, page.NextPageToken, nil
+}
+
 func toUserStatus(p v1.User_Status) UserStatus {
 	if v, ok := v1.User_Status_name[int32(p)]; ok {
 		val := map[string]string{

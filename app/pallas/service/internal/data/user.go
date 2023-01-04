@@ -287,7 +287,7 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 	m.SetStorage(user.Storage)
 	m.SetScore(int(user.Score))
 	m.SetStatus(toEntUserStatus(user.Status))
-	m.SetOwnerGroupID(int(r.data.d.groupsId["User"]))
+	m.SetOwnerGroupID(int(r.data.d.GroupsId["User"]))
 	now := time.Now()
 	m.SetCreatedAt(now)
 	m.SetUpdatedAt(now)
