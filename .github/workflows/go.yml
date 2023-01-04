@@ -53,7 +53,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apk add --no-cache bash build-base findutils git protobuf protobuf-dev
+          apk add --no-cache bash build-base findutils git protobuf protobuf-dev tar
 
       - name: Generate
         run: |
