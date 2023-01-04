@@ -124,7 +124,7 @@ type Registry struct {
 
 // GetRegistry returns a registry instance for the current request.
 func GetRegistry(ht *khttp.Transport) *Registry {
-	var ctx = ht.Request().Context()
+	ctx := ht.Request().Context()
 	registry := ctx.Value(registryKey)
 	if registry != nil {
 		return registry.(*Registry)
