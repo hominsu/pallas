@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/logging"
@@ -13,12 +14,13 @@ import (
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
+	"github.com/hominsu/pallas/app/pallas/service/internal/data"
 	"github.com/hominsu/pallas/app/pallas/service/internal/service"
 	"github.com/hominsu/pallas/app/pallas/service/pkgs/middleware"
 	"github.com/hominsu/pallas/pkg/sessions"
 )
 
-func NewSkipRoutersMatcher() selector.MatchFunc {
+func NewSkipSessionMatcher() selector.MatchFunc {
 	skipList := make(map[string]struct{})
 	skipList["/pallas.service.v1.SiteService/Ping"] = struct{}{}
 	skipList["/pallas.service.v1.UserService/Signup"] = struct{}{}
@@ -32,8 +34,15 @@ func NewSkipRoutersMatcher() selector.MatchFunc {
 	}
 }
 
+func NewAdminMatcher() selector.MatchFunc {
+	return func(ctx context.Context, operation string) bool {
+		return strings.HasPrefix("/pallas.service.v1.AdminService/", operation)
+	}
+}
+
 func NewHTTPServer(
 	c *conf.Server,
+	d *data.Default,
 	ss *service.SiteService,
 	us *service.UserService,
 	as *service.AdminService,
@@ -44,17 +53,18 @@ func NewHTTPServer(
 		http.Middleware(
 			recovery.Recovery(),
 			logging.Server(logger),
+			validate.Validator(),
 			middleware.Info(),
 			selector.Server(
-				middleware.Session(
-					store,
-					"pallas-session",
-					log.NewHelper(log.With(logger, "module", "middleware/session")),
-				),
+				middleware.Session(store, "pallas-session"),
 			).
-				Match(NewSkipRoutersMatcher()).
+				Match(NewSkipSessionMatcher()).
 				Build(),
-			validate.Validator(),
+			selector.Server(
+				middleware.Admin(d),
+			).
+				Match(NewAdminMatcher()).
+				Build(),
 		),
 		http.Filter(
 			handlers.CORS(
