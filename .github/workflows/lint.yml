@@ -60,4 +60,3 @@ jobs:
           version: latest
           working-directory: ${{ matrix.workdir }}
           skip-pkg-cache: true
-          args: --config ./golangci.yml ./...
