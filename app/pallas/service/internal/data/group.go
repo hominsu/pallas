@@ -43,8 +43,8 @@ func (r *groupRepo) Create(ctx context.Context, group *biz.Group) (*biz.Group, e
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		g, err := toGroup(res)
-		if err != nil {
+		g, er := toGroup(res)
+		if er != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", err)
 		}
 		return g, nil
@@ -68,20 +68,20 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 	case biz.GroupViewViewUnspecified, biz.GroupViewBasic:
 		res, err, _ = r.sg.Do(fmt.Sprintf("get_group_by_id_%d", id),
 			func() (interface{}, error) {
-				get, err := r.data.db.Group.Get(ctx, id)
+				get, er := r.data.db.Group.Get(ctx, id)
 				switch {
-				case err == nil:
+				case er == nil:
 					return toGroup(get)
-				case ent.IsNotFound(err):
-					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				case ent.IsNotFound(er):
+					return nil, v1.ErrorNotFoundError("not found: %s", er)
 				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+					return nil, v1.ErrorUnknownError("unknown error: %s", er)
 				}
 			})
 	case biz.GroupViewWithEdgeIds:
 		res, err, _ = r.sg.Do(fmt.Sprintf("get_group_by_id_%d_with_edge_ids", id),
 			func() (interface{}, error) {
-				get, err := r.data.db.Group.Query().
+				get, er := r.data.db.Group.Query().
 					Where(group.ID(id)).
 					WithUsers(func(query *ent.UserQuery) {
 						query.Select(user.FieldID)
@@ -90,12 +90,12 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 					}).
 					Only(ctx)
 				switch {
-				case err == nil:
+				case er == nil:
 					return toGroup(get)
-				case ent.IsNotFound(err):
-					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				case ent.IsNotFound(er):
+					return nil, v1.ErrorNotFoundError("not found: %s", er)
 				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+					return nil, v1.ErrorUnknownError("unknown error: %s", er)
 				}
 			})
 	default:
@@ -121,9 +121,9 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 	switch {
 	case err == nil:
 		r.forgetGroup(res.ID)
-		g, err := toGroup(res)
-		if err != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", err)
+		g, er := toGroup(res)
+		if er != nil {
+			return nil, v1.ErrorInternalError("internal error: %s", er)
 		}
 		return g, nil
 	case sqlgraph.IsUniqueConstraintError(err):
@@ -161,9 +161,9 @@ func (r *groupRepo) List(ctx context.Context, pageSize int, pageToken string, gr
 		Order(ent.Asc(group.FieldID)).
 		Limit(pageSize + 1)
 	if pageToken != "" {
-		token, err := pagination.DecodePageToken(pageToken)
-		if err != nil {
-			return nil, v1.ErrorDecodePageTokenError("%s", err)
+		token, er := pagination.DecodePageToken(pageToken)
+		if er != nil {
+			return nil, v1.ErrorDecodePageTokenError("%s", er)
 		}
 		listQuery = listQuery.Where(group.IDGTE(token))
 	}
@@ -189,9 +189,9 @@ func (r *groupRepo) List(ctx context.Context, pageSize int, pageToken string, gr
 			}
 			entList = entList[:len(entList)-1]
 		}
-		groupList, err := toGroupList(entList)
-		if err != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", err)
+		groupList, er := toGroupList(entList)
+		if er != nil {
+			return nil, v1.ErrorInternalError("internal error: %s", er)
 		}
 		return &biz.GroupPage{
 			Groups:        groupList,
@@ -218,9 +218,9 @@ func (r *groupRepo) BatchCreate(ctx context.Context, groups []*biz.Group) ([]*bi
 	res, err := r.data.db.Group.CreateBulk(bulk...).Save(ctx)
 	switch {
 	case err == nil:
-		groupList, err := toGroupList(res)
-		if err != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", err)
+		groupList, er := toGroupList(res)
+		if er != nil {
+			return nil, v1.ErrorInternalError("internal error: %s", er)
 		}
 		return groupList, nil
 	case sqlgraph.IsUniqueConstraintError(err):
@@ -271,7 +271,7 @@ func toGroup(e *ent.Group) (*biz.Group, error) {
 }
 
 func toGroupList(e []*ent.Group) ([]*biz.Group, error) {
-	var groupList []*biz.Group
+	groupList := make([]*biz.Group, len(e))
 	for _, entEntity := range e {
 		g, err := toGroup(entEntity)
 		if err != nil {

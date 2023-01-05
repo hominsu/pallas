@@ -9,6 +9,7 @@ import (
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
 	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
+	"github.com/hominsu/pallas/app/pallas/service/pkgs/middleware"
 )
 
 func (s *UserService) Signup(ctx context.Context, req *v1.SignupRequest) (*v1.User, error) {
@@ -31,7 +32,7 @@ func (s *UserService) Signin(ctx context.Context, req *v1.SigninRequest) (*v1.Si
 			if err != nil {
 				return nil, v1.ErrorSessionError("get session error: %v", err)
 			}
-			session.Values["userid"] = res.Id
+			session.Values[middleware.SessionKeyUserId] = res.Id
 			if err = session.Save(ht); err != nil {
 				return nil, v1.ErrorSessionError("save session error: %v", err)
 			}
@@ -96,7 +97,7 @@ func (s *UserService) DeleteUser(ctx context.Context, req *v1.DeleteUserRequest)
 }
 
 func getUserId(ctx context.Context) (int64, error) {
-	v := ctx.Value("userid")
+	v := ctx.Value(middleware.ContextKeyUserId)
 	if v == nil {
 		return 0, v1.ErrorSessionError("session missed")
 	}

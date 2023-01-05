@@ -77,7 +77,7 @@ func ToGroup(p *v1.Group) (*Group, error) {
 }
 
 func ToGroupList(p []*v1.Group) ([]*Group, error) {
-	var groupList []*Group
+	groupList := make([]*Group, len(p))
 	for _, pbEntity := range p {
 		group, err := ToGroup(pbEntity)
 		if err != nil {
@@ -108,7 +108,7 @@ func ToProtoGroup(g *Group) (*v1.Group, error) {
 }
 
 func ToProtoGroupList(g []*Group) ([]*v1.Group, error) {
-	var pbList []*v1.Group
+	pbList := make([]*v1.Group, len(g))
 	for _, groupEntity := range g {
 		pbGroup, err := ToProtoGroup(groupEntity)
 		if err != nil {

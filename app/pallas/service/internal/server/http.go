@@ -49,6 +49,7 @@ func NewHTTPServer(
 	store *sessions.RedisStore,
 	logger log.Logger,
 ) *http.Server {
+	// server options
 	opts := []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),

@@ -43,9 +43,9 @@ func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		u, err := toUser(res)
-		if err != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", err)
+		u, er := toUser(res)
+		if er != nil {
+			return nil, v1.ErrorInternalError("internal error: %s", er)
 		}
 		return u, nil
 	case sqlgraph.IsUniqueConstraintError(err):
@@ -68,20 +68,20 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d", id),
 			func() (interface{}, error) {
-				get, err := r.data.db.User.Get(ctx, id)
+				get, er := r.data.db.User.Get(ctx, id)
 				switch {
-				case err == nil:
+				case er == nil:
 					return toUser(get)
-				case ent.IsNotFound(err):
-					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				case ent.IsNotFound(er):
+					return nil, v1.ErrorNotFoundError("not found: %s", er)
 				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+					return nil, v1.ErrorUnknownError("unknown error: %s", er)
 				}
 			})
 	case biz.UserViewWithEdgeIds:
 		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d_with_edge_ids", id),
 			func() (interface{}, error) {
-				get, err := r.data.db.User.Query().
+				get, er := r.data.db.User.Query().
 					Where(user.ID(id)).
 					WithOwnerGroup(func(query *ent.GroupQuery) {
 						query.Select(group.FieldID)
@@ -89,12 +89,12 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 					}).
 					Only(ctx)
 				switch {
-				case err == nil:
+				case er == nil:
 					return toUser(get)
-				case ent.IsNotFound(err):
-					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				case ent.IsNotFound(er):
+					return nil, v1.ErrorNotFoundError("not found: %s", er)
 				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+					return nil, v1.ErrorUnknownError("unknown error: %s", er)
 				}
 			})
 	default:
@@ -115,20 +115,20 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_email_%s", email),
 			func() (interface{}, error) {
-				get, err := r.data.db.User.Query().Where(user.EmailEQ(email)).Only(ctx)
+				get, er := r.data.db.User.Query().Where(user.EmailEQ(email)).Only(ctx)
 				switch {
-				case err == nil:
+				case er == nil:
 					return toUser(get)
-				case ent.IsNotFound(err):
-					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				case ent.IsNotFound(er):
+					return nil, v1.ErrorNotFoundError("not found: %s", er)
 				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+					return nil, v1.ErrorUnknownError("unknown error: %s", er)
 				}
 			})
 	case biz.UserViewWithEdgeIds:
 		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_email_%s_with_edge_ids", email),
 			func() (interface{}, error) {
-				get, err := r.data.db.User.Query().
+				get, er := r.data.db.User.Query().
 					Where(user.EmailEQ(email)).
 					WithOwnerGroup(func(query *ent.GroupQuery) {
 						query.Select(group.FieldID)
@@ -136,12 +136,12 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 					}).
 					Only(ctx)
 				switch {
-				case err == nil:
+				case er == nil:
 					return toUser(get)
-				case ent.IsNotFound(err):
-					return nil, v1.ErrorNotFoundError("not found: %s", err)
+				case ent.IsNotFound(er):
+					return nil, v1.ErrorNotFoundError("not found: %s", er)
 				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", err)
+					return nil, v1.ErrorUnknownError("unknown error: %s", er)
 				}
 			})
 	default:
@@ -169,9 +169,9 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	switch {
 	case err == nil:
 		r.forgetUser(res.ID, res.Email)
-		u, err := toUser(res)
-		if err != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", err)
+		u, er := toUser(res)
+		if er != nil {
+			return nil, v1.ErrorInternalError("internal error: %s", er)
 		}
 		return u, nil
 	case sqlgraph.IsUniqueConstraintError(err):
@@ -208,9 +208,9 @@ func (r *userRepo) List(ctx context.Context, pageSize int, pageToken string, use
 		Order(ent.Asc(user.FieldID)).
 		Limit(pageSize + 1)
 	if pageToken != "" {
-		token, err := pagination.DecodePageToken(pageToken)
-		if err != nil {
-			return nil, v1.ErrorDecodePageTokenError("%s", err)
+		token, er := pagination.DecodePageToken(pageToken)
+		if er != nil {
+			return nil, v1.ErrorDecodePageTokenError("%s", er)
 		}
 		listQuery = listQuery.Where(user.IDGTE(token))
 	}
@@ -235,9 +235,9 @@ func (r *userRepo) List(ctx context.Context, pageSize int, pageToken string, use
 			}
 			entList = entList[:len(entList)-1]
 		}
-		userList, err := toUserList(entList)
-		if err != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", err)
+		userList, er := toUserList(entList)
+		if er != nil {
+			return nil, v1.ErrorInternalError("internal error: %s", er)
 		}
 		return &biz.UserPage{
 			Users:         userList,
@@ -264,9 +264,9 @@ func (r *userRepo) BatchCreate(ctx context.Context, users []*biz.User) ([]*biz.U
 	res, err := r.data.db.User.CreateBulk(bulk...).Save(ctx)
 	switch {
 	case err == nil:
-		userList, err := toUserList(res)
-		if err != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", err)
+		userList, er := toUserList(res)
+		if er != nil {
+			return nil, v1.ErrorInternalError("internal error: %s", er)
 		}
 		return userList, nil
 	case sqlgraph.IsUniqueConstraintError(err):
@@ -329,7 +329,7 @@ func toUser(e *ent.User) (*biz.User, error) {
 }
 
 func toUserList(e []*ent.User) ([]*biz.User, error) {
-	var userList []*biz.User
+	userList := make([]*biz.User, len(e))
 	for _, entEntity := range e {
 		u, err := toUser(entEntity)
 		if err != nil {

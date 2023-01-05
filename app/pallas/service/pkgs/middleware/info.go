@@ -13,7 +13,7 @@ func Info() middleware.Middleware {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
 			if tr, ok := transport.FromServerContext(ctx); ok {
 				if ht, ok := tr.(*http.Transport); ok {
-					ctx = context.WithValue(ctx, "x-md-global-remote-addr", ht.Request().RemoteAddr)
+					ctx = context.WithValue(ctx, ContextKeyRemoteAddr, ht.Request().RemoteAddr)
 				}
 			}
 			return handler(ctx, req)

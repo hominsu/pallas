@@ -226,7 +226,7 @@ func ToUser(p *v1.User) (*User, error) {
 }
 
 func ToUserList(p []*v1.User) ([]*User, error) {
-	var userList []*User
+	userList := make([]*User, len(p))
 	for _, pbEntity := range p {
 		user, err := ToUser(pbEntity)
 		if err != nil {
@@ -259,7 +259,7 @@ func ToProtoUser(u *User) (*v1.User, error) {
 }
 
 func ToProtoUserList(u []*User) ([]*v1.User, error) {
-	var pbList []*v1.User
+	pbList := make([]*v1.User, len(u))
 	for _, userEntity := range u {
 		pbUser, err := ToProtoUser(userEntity)
 		if err != nil {

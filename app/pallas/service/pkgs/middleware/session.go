@@ -15,9 +15,20 @@ const (
 	unauthorized string = "UNAUTHORIZED"
 )
 
-var (
-	ErrGetSessionStoreFail = errors.Unauthorized(unauthorized, "get session error")
+type ContextKey string
+
+const (
+	ContextKeyUserId     ContextKey = "userid"
+	ContextKeyRemoteAddr ContextKey = "remote-addr"
 )
+
+type SessionKey string
+
+const (
+	SessionKeyUserId SessionKey = "userid"
+)
+
+var ErrGetSessionStoreFail = errors.Unauthorized(unauthorized, "get session error")
 
 func Session(store *sessions.RedisStore, name string) middleware.Middleware {
 	return func(handler middleware.Handler) middleware.Handler {
@@ -28,9 +39,9 @@ func Session(store *sessions.RedisStore, name string) middleware.Middleware {
 					if err != nil {
 						return nil, ErrGetSessionStoreFail
 					}
-					if id, ok := session.Values["userid"]; ok {
+					if id, ok := session.Values[SessionKeyUserId]; ok {
 						if userId, ok := id.(int64); ok {
-							ctx = context.WithValue(ctx, "userid", userId)
+							ctx = context.WithValue(ctx, ContextKeyUserId, userId)
 						}
 					}
 				}
