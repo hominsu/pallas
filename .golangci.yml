@@ -67,10 +67,16 @@ linters-settings:
     min-complexity: 50
 
 issues:
+  exclude:
+    - Id
   exclude-rules:
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
+        - lll
+    - path: generate.go
+      linters:
+        - gofmt
         - lll
     - path: pkg/sessions/sessions.go
       linters:
