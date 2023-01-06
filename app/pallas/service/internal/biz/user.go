@@ -227,12 +227,12 @@ func ToUser(p *v1.User) (*User, error) {
 
 func ToUserList(p []*v1.User) ([]*User, error) {
 	userList := make([]*User, len(p))
-	for _, pbEntity := range p {
+	for i, pbEntity := range p {
 		user, err := ToUser(pbEntity)
 		if err != nil {
 			return nil, errors.New("convert to userList error")
 		}
-		userList = append(userList, user)
+		userList[i] = user
 	}
 	return userList, nil
 }
@@ -260,12 +260,12 @@ func ToProtoUser(u *User) (*v1.User, error) {
 
 func ToProtoUserList(u []*User) ([]*v1.User, error) {
 	pbList := make([]*v1.User, len(u))
-	for _, userEntity := range u {
+	for i, userEntity := range u {
 		pbUser, err := ToProtoUser(userEntity)
 		if err != nil {
 			return nil, errors.New("convert to protoUserList error")
 		}
-		pbList = append(pbList, pbUser)
+		pbList[i] = pbUser
 	}
 	return pbList, nil
 }

@@ -330,12 +330,12 @@ func toUser(e *ent.User) (*biz.User, error) {
 
 func toUserList(e []*ent.User) ([]*biz.User, error) {
 	userList := make([]*biz.User, len(e))
-	for _, entEntity := range e {
+	for i, entEntity := range e {
 		u, err := toUser(entEntity)
 		if err != nil {
 			return nil, errors.New("convert to userList error")
 		}
-		userList = append(userList, u)
+		userList[i] = u
 	}
 	return userList, nil
 }

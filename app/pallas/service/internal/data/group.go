@@ -272,12 +272,12 @@ func toGroup(e *ent.Group) (*biz.Group, error) {
 
 func toGroupList(e []*ent.Group) ([]*biz.Group, error) {
 	groupList := make([]*biz.Group, len(e))
-	for _, entEntity := range e {
+	for i, entEntity := range e {
 		g, err := toGroup(entEntity)
 		if err != nil {
 			return nil, errors.New("convert to groupList error")
 		}
-		groupList = append(groupList, g)
+		groupList[i] = g
 	}
 	return groupList, nil
 }
