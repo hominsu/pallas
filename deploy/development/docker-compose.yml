@@ -2,9 +2,9 @@ version: '3.4'
 
 services:
   mysql:
-    restart: always
     image: mysql:latest
     container_name: mysql
+    restart: always
     volumes:
       - ./mysql/mysql:/var/lib/mysql
       - ./mysql/conf/my.cnf:/etc/my.cnf
@@ -18,11 +18,25 @@ services:
         aliases:
           - mysql
 
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: dangerous
+      POSTGRES_DB: pallas
+    ports:
+      - "5432:5432"
+    networks:
+      net:
+        aliases:
+          - postgres
+
   redis:
     image: redis:latest
     container_name: redis
     volumes:
-#      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf
+      #      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf
       - ./redis/data:/data
       - ./redis/logs:/logs
     ports:
