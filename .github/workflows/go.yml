@@ -19,8 +19,6 @@ jobs:
     services:
       mysql:
         image: mysql:latest
-        ports:
-          - "3306:3306"
         env:
           MYSQL_ROOT_PASSWORD: dangerous
           MYSQL_DATABASE: pallas
@@ -31,8 +29,6 @@ jobs:
           --health-retries=3
       postgres:
         image: postgres:latest
-        ports:
-          - "5432:5432"
         env:
           POSTGRES_PASSWORD: dangerous
           POSTGRES_DB: pallas
@@ -43,8 +39,6 @@ jobs:
           --health-retries 5
       redis:
         image: redis:latest
-        ports:
-          - "6379:6379"
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
