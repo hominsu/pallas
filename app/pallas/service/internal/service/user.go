@@ -32,7 +32,7 @@ func (s *UserService) Signin(ctx context.Context, req *v1.SigninRequest) (*v1.Si
 			if err != nil {
 				return nil, v1.ErrorSessionError("get session error: %v", err)
 			}
-			session.Values[middleware.SessionKeyUserId] = res.Id
+			session.Values[string(middleware.SessionKeyUserId)] = res.Id
 			if err = session.Save(ht); err != nil {
 				return nil, v1.ErrorSessionError("save session error: %v", err)
 			}

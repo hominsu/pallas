@@ -39,7 +39,7 @@ func Session(store *sessions.RedisStore, name string) middleware.Middleware {
 					if err != nil {
 						return nil, ErrGetSessionStoreFail
 					}
-					if id, ok := session.Values[SessionKeyUserId]; ok {
+					if id, ok := session.Values[string(SessionKeyUserId)]; ok {
 						if userId, ok := id.(int64); ok {
 							ctx = context.WithValue(ctx, ContextKeyUserId, userId)
 						}
