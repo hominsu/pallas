@@ -30,12 +30,16 @@ jobs:
       image: golang:alpine
       options: --user root
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
       - name: Install dependencies
         run: |
           apk add --no-cache bash build-base findutils git protobuf protobuf-dev tar
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Trust repository
+        run: |
+          git config --global --add safe.directory "*"
 
       - uses: actions/cache@v3
         with:
