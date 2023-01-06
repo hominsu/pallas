@@ -29,6 +29,18 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=3
+      postgres:
+        image: postgres:latest
+        ports:
+          - "5432:5432"
+        env:
+          POSTGRES_PASSWORD: dangerous
+          POSTGRES_DB: pallas
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       redis:
         image: redis:latest
         ports:
@@ -67,7 +79,6 @@ jobs:
           make generate
           make wire
 
-      # TODO: fix "not a git repository"
       - name: Build
         run: |
           make build
