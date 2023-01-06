@@ -48,7 +48,14 @@ type Default struct {
 }
 
 // NewData .
-func NewData(entClient *ent.Client, rdCmd redis.Cmdable, conf *conf.Data, d *Default, logger log.Logger) (*Data, func(), error) {
+func NewData(
+	entClient *ent.Client,
+	rdCmd redis.Cmdable,
+	conf *conf.Data,
+	d *Default,
+	logger log.Logger,
+) (*Data, func(), error) {
+	// NewData
 	helper := log.NewHelper(log.With(logger, "module", "data"))
 
 	data := &Data{

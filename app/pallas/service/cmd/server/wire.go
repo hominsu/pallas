@@ -25,5 +25,13 @@ func initApp(
 	version string,
 	logger log.Logger,
 ) (*kratos.App, func(), error) {
-	panic(wire.Build(data.ProviderSet, biz.ProviderSet, service.ProviderSet, server.ProviderSet, newApp))
+	panic(
+		wire.Build(
+			data.ProviderSet,
+			biz.ProviderSet,
+			service.ProviderSet,
+			server.ProviderSet,
+			newApp,
+		),
+	)
 }
