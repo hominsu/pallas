@@ -36,6 +36,11 @@ generate:
 build:
 	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) build'
 
+.PHONY: test
+# generate test
+test:
+	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) test'
+
 .PHONY: docker
 # generate docker
 docker:
