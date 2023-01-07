@@ -57,6 +57,84 @@ func NewGroupUsecase(repo GroupRepo, logger log.Logger) *GroupUsecase {
 	}
 }
 
+func (uc *GroupUsecase) CreateGroup(ctx context.Context, group *Group) (*v1.Group, error) {
+	res, err := uc.repo.Create(ctx, group)
+	if err != nil {
+		return nil, err
+	}
+
+	protoGroup, err := ToProtoGroup(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return protoGroup, nil
+}
+
+func (uc *GroupUsecase) GetGroup(ctx context.Context, groupId int64, view GroupView) (*v1.Group, error) {
+	res, err := uc.repo.Get(ctx, groupId, view)
+	if err != nil {
+		return nil, err
+	}
+
+	protoGroup, err := ToProtoGroup(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return protoGroup, nil
+}
+
+func (uc *GroupUsecase) UpdateGroup(ctx context.Context, group *Group) (*v1.Group, error) {
+	res, err := uc.repo.Update(ctx, group)
+	if err != nil {
+		return nil, err
+	}
+
+	protoGroup, err := ToProtoGroup(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return protoGroup, nil
+}
+
+func (uc *GroupUsecase) DeleteGroup(ctx context.Context, groupId int64) error {
+	res, err := uc.repo.Get(ctx, groupId, GroupViewWithEdgeIds)
+	if err != nil {
+		return err
+	}
+
+	if len(res.Users) != 0 {
+		return v1.ErrorGroupNotEmpty("group's user is not empty")
+	}
+
+	if err = uc.repo.Delete(ctx, groupId); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (uc *GroupUsecase) ListGroups(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+	view GroupView,
+) ([]*v1.Group, string, error) {
+	// list groups
+	page, err := uc.repo.List(ctx, pageSize, pageToken, view)
+	if err != nil {
+		return nil, "", err
+	}
+
+	protoGroups, err := ToProtoGroupList(page.Groups)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return protoGroups, page.NextPageToken, nil
+}
+
 func ToGroup(p *v1.Group) (*Group, error) {
 	g := &Group{}
 	g.Id = p.GetId()

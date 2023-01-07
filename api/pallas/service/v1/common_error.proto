@@ -25,4 +25,5 @@ enum PallasCommonErrorReason {
   GENERATE_PASSWORD_ERROR = 12;
   PASSWORD_MISMATCH = 13;
   USER_MISMATCH = 14;
+  GROUP_NOT_EMPTY = 15;
 }

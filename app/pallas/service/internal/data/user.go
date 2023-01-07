@@ -199,7 +199,13 @@ func (r *userRepo) Delete(ctx context.Context, userId int64, email string) error
 	}
 }
 
-func (r *userRepo) List(ctx context.Context, pageSize int, pageToken string, userView biz.UserView) (*biz.UserPage, error) {
+func (r *userRepo) List(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+	userView biz.UserView,
+) (*biz.UserPage, error) {
+	// list users
 	var (
 		err     error
 		entList []*ent.User

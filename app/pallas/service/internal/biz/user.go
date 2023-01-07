@@ -168,7 +168,13 @@ func (uc *UserUsecase) DeleteUser(ctx context.Context, userId int64, email strin
 	return nil
 }
 
-func (uc *UserUsecase) ListUsers(ctx context.Context, pageSize int, pageToken string, view UserView) ([]*v1.User, string, error) {
+func (uc *UserUsecase) ListUsers(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+	view UserView,
+) ([]*v1.User, string, error) {
+	// list users
 	page, err := uc.repo.List(ctx, pageSize, pageToken, view)
 	if err != nil {
 		return nil, "", err

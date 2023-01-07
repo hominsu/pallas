@@ -152,7 +152,13 @@ func (r *groupRepo) Delete(ctx context.Context, groupId int64) error {
 	}
 }
 
-func (r *groupRepo) List(ctx context.Context, pageSize int, pageToken string, groupView biz.GroupView) (*biz.GroupPage, error) {
+func (r *groupRepo) List(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+	groupView biz.GroupView,
+) (*biz.GroupPage, error) {
+	// list groups
 	var (
 		err     error
 		entList []*ent.Group
