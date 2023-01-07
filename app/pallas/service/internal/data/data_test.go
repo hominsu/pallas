@@ -66,7 +66,7 @@ func CheckMigration(t *testing.T) {
 	t.Run("FlushAll", FlushAll)
 }
 
-func TestMysql(t *testing.T) {
+func TestMySQL(t *testing.T) {
 	var (
 		err     error
 		cleanup func()
@@ -89,7 +89,7 @@ func TestMysql(t *testing.T) {
 	}
 	defer cleanup()
 
-	t.Run("Check Mysql", CheckMigration)
+	t.Run("Check MySQL", CheckMigration)
 }
 
 func TestPostgres(t *testing.T) {
