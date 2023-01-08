@@ -183,7 +183,7 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	}
 }
 
-func (r *userRepo) Delete(ctx context.Context, userId int64, email string) error {
+func (r *userRepo) Delete(ctx context.Context, userId int64) error {
 	id := int(userId)
 	err := r.data.db.User.DeleteOneID(id).Exec(ctx)
 	switch {

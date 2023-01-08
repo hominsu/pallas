@@ -307,10 +307,6 @@ paths:
                   schema:
                     type: integer
                     format: int64
-                - name: email
-                  in: query
-                  schema:
-                    type: string
             responses:
                 "200":
                     description: OK

@@ -90,7 +90,7 @@ func (s *UserService) DeleteUser(ctx context.Context, req *v1.DeleteUserRequest)
 	if err := checkUserId(ctx, req.GetId()); err != nil {
 		return nil, err
 	}
-	if err := s.uu.DeleteUser(ctx, req.GetId(), req.GetEmail()); req != nil {
+	if err := s.uu.DeleteUser(ctx, req.GetId()); req != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

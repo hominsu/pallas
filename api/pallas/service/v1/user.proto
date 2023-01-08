@@ -94,5 +94,4 @@ message UpdateUserRequest {
 
 message DeleteUserRequest {
   int64 id = 1;
-  string email = 2 [(validate.rules).string = {ignore_empty: true, email: true}];
 }
