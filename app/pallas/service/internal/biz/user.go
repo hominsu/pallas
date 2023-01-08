@@ -60,7 +60,7 @@ type UserRepo interface {
 	Get(ctx context.Context, userId int64, userView UserView) (*User, error)
 	GetByEmail(ctx context.Context, email string, userView UserView) (*User, error)
 	Update(ctx context.Context, user *User) (*User, error)
-	Delete(ctx context.Context, userId int64, email string) error
+	Delete(ctx context.Context, userId int64) error
 	List(ctx context.Context, pageSize int, pageToken string, userView UserView) (*UserPage, error)
 	BatchCreate(ctx context.Context, users []*User) ([]*User, error)
 }
@@ -161,8 +161,8 @@ func (uc *UserUsecase) UpdateUser(ctx context.Context, user *User) (*v1.User, er
 	return protoUser, nil
 }
 
-func (uc *UserUsecase) DeleteUser(ctx context.Context, userId int64, email string) error {
-	if err := uc.repo.Delete(ctx, userId, email); err != nil {
+func (uc *UserUsecase) DeleteUser(ctx context.Context, userId int64) error {
+	if err := uc.repo.Delete(ctx, userId); err != nil {
 		return err
 	}
 	return nil

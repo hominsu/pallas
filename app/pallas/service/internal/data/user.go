@@ -168,7 +168,6 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		r.forgetUser(res.ID, res.Email)
 		u, er := toUser(res)
 		if er != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", er)
@@ -184,12 +183,11 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	}
 }
 
-func (r *userRepo) Delete(ctx context.Context, userId int64, email string) error {
+func (r *userRepo) Delete(ctx context.Context, userId int64) error {
 	id := int(userId)
 	err := r.data.db.User.DeleteOneID(id).Exec(ctx)
 	switch {
 	case err == nil:
-		r.forgetUser(id, email)
 		return nil
 	case ent.IsNotFound(err):
 		return v1.ErrorNotFoundError("not found: %s", err)
@@ -301,13 +299,6 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
 	}
 	return m, nil
-}
-
-func (r *userRepo) forgetUser(userId int, email string) {
-	r.sg.Forget(fmt.Sprintf("get_user_by_id_%d", userId))
-	r.sg.Forget(fmt.Sprintf("get_user_by_id_%d_with_edge_ids", userId))
-	r.sg.Forget(fmt.Sprintf("get_user_by_email_%s", email))
-	r.sg.Forget(fmt.Sprintf("get_user_by_email_%s_with_edge_ids", email))
 }
 
 func toUserStatus(e user.Status) biz.UserStatus { return biz.UserStatus(e) }
