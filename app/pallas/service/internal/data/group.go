@@ -120,7 +120,6 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		r.forgetGroup(res.ID)
 		g, er := toGroup(res)
 		if er != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", er)
@@ -142,7 +141,6 @@ func (r *groupRepo) Delete(ctx context.Context, groupId int64) error {
 	err = r.data.db.Group.DeleteOneID(id).Exec(ctx)
 	switch {
 	case err == nil:
-		r.forgetGroup(id)
 		return nil
 	case ent.IsNotFound(err):
 		return v1.ErrorNotFoundError("not found: %s", err)
@@ -252,11 +250,6 @@ func (r *groupRepo) createBuilder(group *biz.Group) (*ent.GroupCreate, error) {
 		m.AddUserIDs(int(u.Id))
 	}
 	return m, nil
-}
-
-func (r *groupRepo) forgetGroup(groupId int) {
-	r.sg.Forget(fmt.Sprintf("get_group_by_id_%d", groupId))
-	r.sg.Forget(fmt.Sprintf("get_group_by_id_%d_with_edge_ids", groupId))
 }
 
 func toGroup(e *ent.Group) (*biz.Group, error) {
