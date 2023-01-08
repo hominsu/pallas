@@ -31,6 +31,7 @@ var ProviderSet = wire.NewSet(
 	NewRedisStore,
 	NewUserRepo,
 	NewGroupRepo,
+	NewSettingRepo,
 	Migration,
 )
 
