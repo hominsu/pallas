@@ -1,14 +1,13 @@
 package schema
 
 import (
-	"time"
-
 	"entgo.io/contrib/entproto"
 	"entgo.io/ent"
 	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"entgo.io/ent/schema/mixin"
 )
 
 // User holds the schema definition for the User entity.
@@ -54,13 +53,20 @@ func (User) Fields() []ent.Field {
 					"overuse_baned": 3,
 				}),
 			),
-		field.Time("created_at").
-			Default(time.Now).
-			Immutable().
-			Annotations(entproto.Field(9)),
-		field.Time("updated_at").
-			Default(time.Now).
-			Annotations(entproto.Field(10)),
+	}
+}
+
+// Mixin of the User.
+func (User) Mixin() []ent.Mixin {
+	return []ent.Mixin{
+		mixin.AnnotateFields(
+			CreateTimeMixin{},
+			entproto.Field(9),
+		),
+		mixin.AnnotateFields(
+			UpdateTimeMixin{},
+			entproto.Field(10),
+		),
 	}
 }
 

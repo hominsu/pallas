@@ -1,14 +1,13 @@
 package schema
 
 import (
-	"time"
-
 	"entgo.io/contrib/entproto"
 	"entgo.io/ent"
 	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"entgo.io/ent/schema/mixin"
 )
 
 // Group holds the schema definition for the Group entity.
@@ -36,13 +35,20 @@ func (Group) Fields() []ent.Field {
 			Annotations(entproto.Field(4)),
 		field.Int("speed_limit").
 			Annotations(entproto.Field(5)),
-		field.Time("created_at").
-			Default(time.Now).
-			Immutable().
-			Annotations(entproto.Field(6)),
-		field.Time("updated_at").
-			Default(time.Now).
-			Annotations(entproto.Field(7)),
+	}
+}
+
+// Mixin of the Group.
+func (Group) Mixin() []ent.Mixin {
+	return []ent.Mixin{
+		mixin.AnnotateFields(
+			CreateTimeMixin{},
+			entproto.Field(6),
+		),
+		mixin.AnnotateFields(
+			UpdateTimeMixin{},
+			entproto.Field(7),
+		),
 	}
 }
 
