@@ -36,6 +36,11 @@ var (
 		WriteTimeout:    durationpb.New(time.Millisecond * 200),
 	}
 
+	CacheConf = &conf.Data_Cache{
+		LfuSize: 10,
+		Ttl:     durationpb.New(time.Minute * 1),
+	}
+
 	data *Data
 )
 
@@ -77,13 +82,15 @@ func TestMySQL(t *testing.T) {
 	c := &conf.Data{
 		Database: MySQLConf,
 		Redis:    RedisConf,
+		Cache:    CacheConf,
 	}
 
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
+	redisCache := NewRedisCache(redisCmd, c)
 	d := Migration(entClient, logger)
 
-	data, cleanup, err = NewData(entClient, redisCmd, c, d, logger)
+	data, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {
 		helper.Fatal(err)
 	}
@@ -103,13 +110,15 @@ func TestPostgres(t *testing.T) {
 	c := &conf.Data{
 		Database: PostgreSQLConf,
 		Redis:    RedisConf,
+		Cache:    CacheConf,
 	}
 
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
+	redisCache := NewRedisCache(redisCmd, c)
 	d := Migration(entClient, logger)
 
-	data, cleanup, err = NewData(entClient, redisCmd, c, d, logger)
+	data, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {
 		helper.Fatal(err)
 	}
@@ -129,13 +138,15 @@ func TestSQLite3(t *testing.T) {
 	c := &conf.Data{
 		Database: SQLite3Conf,
 		Redis:    RedisConf,
+		Cache:    CacheConf,
 	}
 
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
+	redisCache := NewRedisCache(redisCmd, c)
 	d := Migration(entClient, logger)
 
-	data, cleanup, err = NewData(entClient, redisCmd, c, d, logger)
+	data, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {
 		helper.Fatal(err)
 	}

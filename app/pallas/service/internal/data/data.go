@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-redis/cache/v8"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/wire"
 	"golang.org/x/crypto/bcrypt"
@@ -28,6 +29,7 @@ var ProviderSet = wire.NewSet(
 	NewData,
 	NewEntClient,
 	NewRedisCmd,
+	NewRedisCache,
 	NewRedisStore,
 	NewUserRepo,
 	NewGroupRepo,
@@ -38,6 +40,7 @@ var ProviderSet = wire.NewSet(
 type Data struct {
 	db    *ent.Client
 	rdCmd redis.Cmdable
+	cache *cache.Cache
 
 	conf *conf.Data
 	d    *Default
@@ -52,6 +55,7 @@ type Default struct {
 func NewData(
 	entClient *ent.Client,
 	rdCmd redis.Cmdable,
+	cache *cache.Cache,
 	conf *conf.Data,
 	d *Default,
 	logger log.Logger,
@@ -62,6 +66,7 @@ func NewData(
 	data := &Data{
 		db:    entClient,
 		rdCmd: rdCmd,
+		cache: cache,
 		conf:  conf,
 		d:     d,
 	}
@@ -114,6 +119,13 @@ func NewRedisCmd(conf *conf.Data, logger log.Logger) redis.Cmdable {
 		helper.Fatalf("redis connect error: %v", err)
 	}
 	return client
+}
+
+func NewRedisCache(rdCmd redis.Cmdable, conf *conf.Data) *cache.Cache {
+	return cache.New(&cache.Options{
+		Redis:      rdCmd,
+		LocalCache: cache.NewTinyLFU(int(conf.Cache.LfuSize), conf.Cache.Ttl.AsDuration()),
+	})
 }
 
 func NewRedisStore(rdCmd redis.Cmdable, conf *conf.Secret, logger log.Logger) *sessions.RedisStore {

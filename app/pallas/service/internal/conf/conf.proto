@@ -35,8 +35,13 @@ message Data {
     google.protobuf.Duration read_timeout = 6;
     google.protobuf.Duration write_timeout = 7;
   }
+  message Cache {
+    int64 lfu_size = 1;
+    google.protobuf.Duration ttl = 2;
+  }
   Database database = 1;
   Redis redis = 2;
+  Cache cache = 3;
 }
 
 message Secret {
