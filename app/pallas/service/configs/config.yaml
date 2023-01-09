@@ -13,6 +13,9 @@ data:
     cache_expiration: 1800s
     read_timeout: 0.2s
     write_timeout: 0.2s
+  cache:
+    lfu_size: 1000
+    ttl: 60s
 secret:
   session:
     session_key: "hello"

@@ -3,11 +3,13 @@ package data
 import (
 	"context"
 	"errors"
-	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-redis/cache/v8"
 	"golang.org/x/sync/singleflight"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
@@ -19,6 +21,8 @@ import (
 )
 
 var _ biz.GroupRepo = (*groupRepo)(nil)
+
+const groupCacheKey = "group_cache_key_"
 
 type groupRepo struct {
 	data *Data
@@ -61,27 +65,34 @@ func (r *groupRepo) Create(ctx context.Context, group *biz.Group) (*biz.Group, e
 func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupView) (*biz.Group, error) {
 	var (
 		err error
+		key string
 		res interface{}
 	)
 	id := int(groupId)
 	switch groupView {
 	case biz.GroupViewViewUnspecified, biz.GroupViewBasic:
-		res, err, _ = r.sg.Do(fmt.Sprintf("get_group_by_id_%d", id),
-			func() (interface{}, error) {
-				get, er := r.data.db.Group.Get(ctx, id)
-				switch {
-				case er == nil:
-					return toGroup(get)
-				case ent.IsNotFound(er):
-					return nil, v1.ErrorNotFoundError("not found: %s", er)
-				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", er)
-				}
-			})
+		// key: group_cache_key_get_group_id:groupId
+		key = r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			get := &ent.Group{}
+			// get cache
+			er := r.data.cache.Get(ctx, key, get)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				get, er = r.data.db.Group.Get(ctx, id)
+			}
+			return get, er
+		})
 	case biz.GroupViewWithEdgeIds:
-		res, err, _ = r.sg.Do(fmt.Sprintf("get_group_by_id_%d_with_edge_ids", id),
-			func() (interface{}, error) {
-				get, er := r.data.db.Group.Query().
+		// key: group_cache_key_get_group_id:groupId
+		key = r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id", "edge_ids")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			get := &ent.Group{}
+			// get cache
+			er := r.data.cache.Get(ctx, key, get)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				get, er = r.data.db.Group.Query().
 					Where(group.ID(id)).
 					WithUsers(func(query *ent.UserQuery) {
 						query.Select(user.FieldID)
@@ -89,22 +100,28 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 						query.Select(user.FieldStatus)
 					}).
 					Only(ctx)
-				switch {
-				case er == nil:
-					return toGroup(get)
-				case ent.IsNotFound(er):
-					return nil, v1.ErrorNotFoundError("not found: %s", er)
-				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", er)
-				}
-			})
+			}
+			return get, er
+		})
 	default:
 		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
 	}
-	if err != nil {
-		return nil, err
+	switch {
+	case err == nil: // db hit, set cache
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: res.(*ent.Group),
+			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
+		return toGroup(res.(*ent.Group))
+	case ent.IsNotFound(err): // db miss
+		return nil, v1.ErrorNotFoundError("not found: %s", err)
+	default: // db error
+		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
-	return res.(*biz.Group), nil
 }
 
 func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, error) {
@@ -117,14 +134,24 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 	for _, u := range group.Users {
 		m.AddUserIDs(int(u.Id))
 	}
+
+	// update group
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		g, er := toGroup(res)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", er)
+		// delete id indexed cache
+		if err = r.flushKeysByPrefix(
+			ctx,
+			// key: group_cache_key_get_group_id:groupId
+			r.cacheKeyPrefix(strconv.FormatInt(group.Id, 10), "get", "group", "id"),
+			// key: group_cache_key_get_group_id:groupId
+			r.cacheKeyPrefix(strconv.FormatInt(group.Id, 10), "get", "group", "id", "edge_ids"),
+			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
+			groupCacheKey+"list_group",
+		); err != nil {
+			r.log.Error(err)
 		}
-		return g, nil
+		return toGroup(res)
 	case sqlgraph.IsUniqueConstraintError(err):
 		return nil, v1.ErrorAlreadyExistsError("group already exists: %s", err)
 	case ent.IsConstraintError(err):
@@ -141,6 +168,18 @@ func (r *groupRepo) Delete(ctx context.Context, groupId int64) error {
 	err = r.data.db.Group.DeleteOneID(id).Exec(ctx)
 	switch {
 	case err == nil:
+		// delete id indexed cache
+		if err = r.flushKeysByPrefix(
+			ctx,
+			// key: group_cache_key_get_group_id:groupId
+			r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id"),
+			// key: group_cache_key_get_group_id:groupId
+			r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id", "edge_ids"),
+			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
+			groupCacheKey+"list_group",
+		); err != nil {
+			r.log.Error(err)
+		}
 		return nil
 	case ent.IsNotFound(err):
 		return v1.ErrorNotFoundError("not found: %s", err)
@@ -157,10 +196,6 @@ func (r *groupRepo) List(
 	groupView biz.GroupView,
 ) (*biz.GroupPage, error) {
 	// list groups
-	var (
-		err     error
-		entList []*ent.Group
-	)
 	listQuery := r.data.db.Group.Query().
 		Order(ent.Asc(group.FieldID)).
 		Limit(pageSize + 1)
@@ -171,20 +206,60 @@ func (r *groupRepo) List(
 		}
 		listQuery = listQuery.Where(group.IDGTE(token))
 	}
+
+	var (
+		err error
+		key string
+		res interface{}
+	)
+
 	switch groupView {
 	case biz.GroupViewViewUnspecified, biz.GroupViewBasic:
-		entList, err = listQuery.All(ctx)
+		// key: group_cache_key_list_group:pageSize_pageToken
+		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "group")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			var entList []*ent.Group
+			// get cache
+			er := r.data.cache.Get(ctx, key, entList)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				entList, er = listQuery.All(ctx)
+			}
+			return entList, er
+		})
 	case biz.GroupViewWithEdgeIds:
-		entList, err = listQuery.
-			WithUsers(func(query *ent.UserQuery) {
-				query.Select(user.FieldID)
-				query.Select(user.FieldNickName)
-				query.Select(user.FieldStatus)
-			}).
-			All(ctx)
+		// key: group_cache_key_list_group:pageSize_pageToken
+		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "group", "edge_ids")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			var entList []*ent.Group
+			// get cache
+			er := r.data.cache.Get(ctx, key, entList)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				entList, er = listQuery.
+					WithUsers(func(query *ent.UserQuery) {
+						query.Select(user.FieldID)
+						query.Select(user.FieldNickName)
+						query.Select(user.FieldStatus)
+					}).
+					All(ctx)
+			}
+			return entList, er
+		})
 	}
 	switch {
-	case err == nil:
+	case err == nil: // db hit, set cache
+		entList := res.([]*ent.Group)
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: entList,
+			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
+
+		// generate next page token
 		var nextPageToken string
 		if len(entList) == pageSize+1 {
 			nextPageToken, err = pagination.EncodePageToken(entList[len(entList)-1].ID)
@@ -193,6 +268,7 @@ func (r *groupRepo) List(
 			}
 			entList = entList[:len(entList)-1]
 		}
+
 		groupList, er := toGroupList(entList)
 		if er != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", er)
@@ -201,8 +277,9 @@ func (r *groupRepo) List(
 			Groups:        groupList,
 			NextPageToken: nextPageToken,
 		}, nil
-	default:
-		r.log.Errorf("unknown err: %v", err)
+	case ent.IsNotFound(err): // db miss
+		return nil, v1.ErrorNotFoundError("not found: %s", err)
+	default: // error
 		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
 }
@@ -250,6 +327,26 @@ func (r *groupRepo) createBuilder(group *biz.Group) (*ent.GroupCreate, error) {
 		m.AddUserIDs(int(u.Id))
 	}
 	return m, nil
+}
+
+func (r *groupRepo) cacheKeyPrefix(unique string, a ...string) string {
+	s := strings.Join(a, "_")
+	return groupCacheKey + s + ":" + unique
+}
+
+func (r *groupRepo) flushKeysByPrefix(ctx context.Context, prefix ...string) error {
+	for _, p := range prefix {
+		iter := r.data.rdCmd.Scan(ctx, 0, p+":*", 0).Iterator()
+		for iter.Next(ctx) {
+			if err := r.data.rdCmd.Del(ctx, iter.Val()).Err(); err != nil {
+				return v1.ErrorInternalError("flush group cache keys by prefix error: %v", err)
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return v1.ErrorInternalError("flush group cache keys by prefix error: %v", err)
+		}
+	}
+	return nil
 }
 
 func toGroup(e *ent.Group) (*biz.Group, error) {
