@@ -3,11 +3,13 @@ package data
 import (
 	"context"
 	"errors"
-	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-redis/cache/v8"
 	"golang.org/x/sync/singleflight"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
@@ -19,6 +21,8 @@ import (
 )
 
 var _ biz.UserRepo = (*userRepo)(nil)
+
+const userCacheKey = "user_cache_key_"
 
 type userRepo struct {
 	data *Data
@@ -61,96 +65,122 @@ func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error
 func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView) (*biz.User, error) {
 	var (
 		err error
+		key string
 		res interface{}
 	)
 	id := int(userId)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
-		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d", id),
-			func() (interface{}, error) {
-				get, er := r.data.db.User.Get(ctx, id)
-				switch {
-				case er == nil:
-					return toUser(get)
-				case ent.IsNotFound(er):
-					return nil, v1.ErrorNotFoundError("not found: %s", er)
-				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", er)
-				}
-			})
+		// key: user_cache_key_get_user_id:userId
+		key = r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			get := &ent.User{}
+			// get cache
+			er := r.data.cache.Get(ctx, key, get)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				get, er = r.data.db.User.Get(ctx, id)
+			}
+			return get, er
+		})
 	case biz.UserViewWithEdgeIds:
-		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_id_%d_with_edge_ids", id),
-			func() (interface{}, error) {
-				get, er := r.data.db.User.Query().
+		// key: user_cache_key_get_user_id_edge_ids:userId
+		key = r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id", "edge_ids")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			get := &ent.User{}
+			// get cache
+			er := r.data.cache.Get(ctx, key, get)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				get, er = r.data.db.User.Query().
 					Where(user.ID(id)).
 					WithOwnerGroup(func(query *ent.GroupQuery) {
 						query.Select(group.FieldID)
 						query.Select(group.FieldName)
 					}).
 					Only(ctx)
-				switch {
-				case er == nil:
-					return toUser(get)
-				case ent.IsNotFound(er):
-					return nil, v1.ErrorNotFoundError("not found: %s", er)
-				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", er)
-				}
-			})
+			}
+			return get, er
+		})
 	default:
 		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
 	}
-	if err != nil {
-		return nil, err
+	switch {
+	case err == nil: // db hit, set cache
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: res.(*ent.User),
+			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
+		return toUser(res.(*ent.User))
+	case ent.IsNotFound(err): // db miss
+		return nil, v1.ErrorNotFoundError("not found: %s", err)
+	default: // error
+		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
-	return res.(*biz.User), nil
 }
 
 func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.UserView) (*biz.User, error) {
 	var (
 		err error
+		key string
 		res interface{}
 	)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
-		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_email_%s", email),
-			func() (interface{}, error) {
-				get, er := r.data.db.User.Query().Where(user.EmailEQ(email)).Only(ctx)
-				switch {
-				case er == nil:
-					return toUser(get)
-				case ent.IsNotFound(er):
-					return nil, v1.ErrorNotFoundError("not found: %s", er)
-				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", er)
-				}
-			})
+		// key: user_cache_key_get_user_email:userEmail
+		key = r.cacheKeyPrefix(email, "get", "user", "email")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			get := &ent.User{}
+			// get cache
+			er := r.data.cache.Get(ctx, key, get)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				get, er = r.data.db.User.Query().Where(user.EmailEQ(email)).Only(ctx)
+			}
+			return get, er
+		})
 	case biz.UserViewWithEdgeIds:
-		res, err, _ = r.sg.Do(fmt.Sprintf("get_user_by_email_%s_with_edge_ids", email),
-			func() (interface{}, error) {
-				get, er := r.data.db.User.Query().
+		// key: user_cache_key_get_user_email_edge_ids:userEmail
+		key = r.cacheKeyPrefix(email, "get", "user", "email", "edge_ids")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			get := &ent.User{}
+			// get cache
+			er := r.data.cache.Get(ctx, key, get)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				get, er = r.data.db.User.Query().
 					Where(user.EmailEQ(email)).
 					WithOwnerGroup(func(query *ent.GroupQuery) {
 						query.Select(group.FieldID)
 						query.Select(group.FieldName)
 					}).
 					Only(ctx)
-				switch {
-				case er == nil:
-					return toUser(get)
-				case ent.IsNotFound(er):
-					return nil, v1.ErrorNotFoundError("not found: %s", er)
-				default:
-					return nil, v1.ErrorUnknownError("unknown error: %s", er)
-				}
-			})
+			}
+			return get, er
+		})
 	default:
 		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
 	}
-	if err != nil {
-		return nil, err
+	switch {
+	case err == nil: // db hit, set cache
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: res.(*ent.User),
+			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
+		return toUser(res.(*ent.User))
+	case ent.IsNotFound(err): // db miss
+		return nil, v1.ErrorNotFoundError("not found: %s", err)
+	default: // error
+		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
-	return res.(*biz.User), nil
 }
 
 func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error) {
@@ -165,14 +195,28 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	if user.OwnerGroup != nil {
 		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
 	}
+
+	// update user
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		u, er := toUser(res)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", er)
+		// delete id indexed cache
+		if err = r.flushKeysByPrefix(
+			ctx,
+			// key: user_cache_key_get_user_id:userId
+			r.cacheKeyPrefix(strconv.FormatInt(int64(res.ID), 10), "get", "user", "id"),
+			// key: user_cache_key_get_user_id_edge_ids:userId
+			r.cacheKeyPrefix(strconv.FormatInt(int64(res.ID), 10), "get", "user", "id", "edge_ids"),
+			// key: user_cache_key_get_user:userEmail
+			r.cacheKeyPrefix(res.Email, "get", "user", "email"),
+			// key: user_cache_key_get_user_edge_ids:userEmail
+			r.cacheKeyPrefix(res.Email, "get", "user", "email", "edge_ids"),
+			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
+			userCacheKey+"list_user",
+		); err != nil {
+			r.log.Error(err)
 		}
-		return u, nil
+		return toUser(res)
 	case sqlgraph.IsUniqueConstraintError(err):
 		return nil, v1.ErrorAlreadyExistsError("user already exists: %s", err)
 	case ent.IsConstraintError(err):
@@ -184,10 +228,32 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 }
 
 func (r *userRepo) Delete(ctx context.Context, userId int64) error {
-	id := int(userId)
-	err := r.data.db.User.DeleteOneID(id).Exec(ctx)
+	// get deleted user from db
+	res, err := r.Get(ctx, userId, biz.UserViewBasic)
+	if err != nil {
+		return err
+	}
+
+	// delete user
+	err = r.data.db.User.DeleteOneID(int(userId)).Exec(ctx)
 	switch {
 	case err == nil:
+		// delete id indexed cache
+		if err = r.flushKeysByPrefix(
+			ctx,
+			// key: user_cache_key_get_user_id:userId
+			r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id"),
+			// key: user_cache_key_get_user_id_edge_ids:userId
+			r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id", "edge_ids"),
+			// key: user_cache_key_get_user:userEmail
+			r.cacheKeyPrefix(res.Email, "get", "user", "email"),
+			// key: user_cache_key_get_user_edge_ids:userEmail
+			r.cacheKeyPrefix(res.Email, "get", "user", "email", "edge_ids"),
+			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
+			userCacheKey+"list_user",
+		); err != nil {
+			r.log.Error(err)
+		}
 		return nil
 	case ent.IsNotFound(err):
 		return v1.ErrorNotFoundError("not found: %s", err)
@@ -204,10 +270,6 @@ func (r *userRepo) List(
 	userView biz.UserView,
 ) (*biz.UserPage, error) {
 	// list users
-	var (
-		err     error
-		entList []*ent.User
-	)
 	listQuery := r.data.db.User.Query().
 		Order(ent.Asc(user.FieldID)).
 		Limit(pageSize + 1)
@@ -218,19 +280,59 @@ func (r *userRepo) List(
 		}
 		listQuery = listQuery.Where(user.IDGTE(token))
 	}
+
+	var (
+		err error
+		key string
+		res interface{}
+	)
+
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
-		entList, err = listQuery.All(ctx)
+		// key: user_cache_key_list_user:pageSize_pageToken
+		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "user")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			var entList []*ent.User
+			// get cache
+			er := r.data.cache.Get(ctx, key, entList)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				entList, er = listQuery.All(ctx)
+			}
+			return entList, er
+		})
 	case biz.UserViewWithEdgeIds:
-		entList, err = listQuery.
-			WithOwnerGroup(func(query *ent.GroupQuery) {
-				query.Select(group.FieldID)
-				query.Select(group.FieldName)
-			}).
-			All(ctx)
+		// key: user_cache_key_list_user_edge_ids:pageSize_pageToken
+		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "user", "edge_ids")
+		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+			var entList []*ent.User
+			// get cache
+			er := r.data.cache.Get(ctx, key, entList)
+			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+				// get from db
+				entList, er = listQuery.WithOwnerGroup(func(query *ent.GroupQuery) {
+					query.Select(group.FieldID)
+					query.Select(group.FieldName)
+				}).All(ctx)
+			}
+			return entList, er
+		})
+	default:
+		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
 	}
 	switch {
-	case err == nil:
+	case err == nil: // db hit, set cache
+		entList := res.([]*ent.User)
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: entList,
+			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
+
+		// generate next page token
 		var nextPageToken string
 		if len(entList) == pageSize+1 {
 			nextPageToken, err = pagination.EncodePageToken(entList[len(entList)-1].ID)
@@ -239,6 +341,7 @@ func (r *userRepo) List(
 			}
 			entList = entList[:len(entList)-1]
 		}
+
 		userList, er := toUserList(entList)
 		if er != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", er)
@@ -247,8 +350,9 @@ func (r *userRepo) List(
 			Users:         userList,
 			NextPageToken: nextPageToken,
 		}, nil
-	default:
-		r.log.Errorf("unknown err: %v", err)
+	case ent.IsNotFound(err): // db miss
+		return nil, v1.ErrorNotFoundError("not found: %s", err)
+	default: // error
 		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
 }
@@ -299,6 +403,26 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
 	}
 	return m, nil
+}
+
+func (r *userRepo) cacheKeyPrefix(unique string, a ...string) string {
+	s := strings.Join(a, "_")
+	return userCacheKey + s + ":" + unique
+}
+
+func (r *userRepo) flushKeysByPrefix(ctx context.Context, prefix ...string) error {
+	for _, p := range prefix {
+		iter := r.data.rdCmd.Scan(ctx, 0, p+":*", 0).Iterator()
+		for iter.Next(ctx) {
+			if err := r.data.rdCmd.Del(ctx, iter.Val()).Err(); err != nil {
+				return v1.ErrorInternalError("flush user cache keys by prefix error: %v", err)
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return v1.ErrorInternalError("flush user cache keys by prefix error: %v", err)
+		}
+	}
+	return nil
 }
 
 func toUserStatus(e user.Status) biz.UserStatus { return biz.UserStatus(e) }
