@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"time"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/go-kratos/kratos/v2/log"
@@ -191,7 +190,6 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	m.SetStorage(user.Storage)
 	m.SetScore(int(user.Score))
 	m.SetStatus(toEntUserStatus(user.Status))
-	m.SetUpdatedAt(time.Now())
 	if user.OwnerGroup != nil {
 		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
 	}
@@ -271,7 +269,7 @@ func (r *userRepo) List(
 ) (*biz.UserPage, error) {
 	// list users
 	listQuery := r.data.db.User.Query().
-		Order(ent.Asc(user.FieldID)).
+		Order(ent.Asc(user.FieldCreatedAt)).
 		Limit(pageSize + 1)
 	if pageToken != "" {
 		token, er := pagination.DecodePageToken(pageToken)
@@ -396,9 +394,6 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 	m.SetScore(int(user.Score))
 	m.SetStatus(toEntUserStatus(user.Status))
 	m.SetOwnerGroupID(int(r.data.d.GroupsId["User"]))
-	now := time.Now()
-	m.SetCreatedAt(now)
-	m.SetUpdatedAt(now)
 	if user.OwnerGroup != nil {
 		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
 	}

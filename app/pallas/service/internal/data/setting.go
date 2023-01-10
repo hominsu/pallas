@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"time"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/go-kratos/kratos/v2/log"
@@ -303,9 +302,6 @@ func (r *settingRepo) createBuilder(setting *biz.Setting) (*ent.SettingCreate, e
 	m.SetName(setting.Name)
 	m.SetValue(setting.Value)
 	m.SetType(toEntSettingType(setting.Type))
-	now := time.Now()
-	m.SetCreatedAt(now)
-	m.SetUpdatedAt(now)
 	return m, nil
 }
 

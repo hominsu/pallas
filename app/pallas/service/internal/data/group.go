@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"time"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/go-kratos/kratos/v2/log"
@@ -130,7 +129,6 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 	m.SetMaxStorage(group.MaxStorage)
 	m.SetShareEnabled(group.ShareEnable)
 	m.SetSpeedLimit(int(group.SpeedLimit))
-	m.SetUpdatedAt(time.Now())
 	for _, u := range group.Users {
 		m.AddUserIDs(int(u.Id))
 	}
@@ -318,9 +316,6 @@ func (r *groupRepo) createBuilder(group *biz.Group) (*ent.GroupCreate, error) {
 	m.SetMaxStorage(group.MaxStorage)
 	m.SetShareEnabled(group.ShareEnable)
 	m.SetSpeedLimit(int(group.SpeedLimit))
-	now := time.Now()
-	m.SetCreatedAt(now)
-	m.SetUpdatedAt(now)
 	for _, u := range group.Users {
 		m.AddUserIDs(int(u.Id))
 	}
