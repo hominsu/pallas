@@ -48,7 +48,7 @@ func checkMigration(ctx context.Context, client *ent.Client) bool {
 func setMigration(ctx context.Context, client *ent.Client) {
 	client.Setting.Create().
 		SetName("migration").
-		SetValue("ture").
+		SetValue("true").
 		SetType(setting.TypeBasic).
 		ExecX(ctx)
 }
