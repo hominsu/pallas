@@ -137,13 +137,20 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		// delete id indexed cache
-		if err = r.flushKeysByPrefix(
+		// delete indexed cache
+		if err = r.deleteCache(
 			ctx,
 			// key: group_cache_key_get_group_id:groupId
 			r.cacheKeyPrefix(strconv.FormatInt(group.Id, 10), "get", "group", "id"),
 			// key: group_cache_key_get_group_id:groupId
 			r.cacheKeyPrefix(strconv.FormatInt(group.Id, 10), "get", "group", "id", "edge_ids"),
+		); err != nil {
+			r.log.Error(err)
+		}
+
+		// delete cache by scan redis
+		if err = r.deleteKeysByScanPrefix(
+			ctx,
 			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
 			groupCacheKey+"list_group",
 		); err != nil {
@@ -164,13 +171,20 @@ func (r *groupRepo) Delete(ctx context.Context, groupId int64) error {
 	err := r.data.db.Group.DeleteOneID(int(groupId)).Exec(ctx)
 	switch {
 	case err == nil:
-		// delete id indexed cache
-		if err = r.flushKeysByPrefix(
+		// delete indexed cache
+		if err = r.deleteCache(
 			ctx,
 			// key: group_cache_key_get_group_id:groupId
 			r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id"),
 			// key: group_cache_key_get_group_id:groupId
 			r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id", "edge_ids"),
+		); err != nil {
+			r.log.Error(err)
+		}
+
+		// delete cache by scan redis
+		if err = r.deleteKeysByScanPrefix(
+			ctx,
 			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
 			groupCacheKey+"list_group",
 		); err != nil {
@@ -216,7 +230,7 @@ func (r *groupRepo) List(
 		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
 			var entList []*ent.Group
 			// get cache
-			er := r.data.cache.Get(ctx, key, entList)
+			er := r.data.cache.GetSkippingLocalCache(ctx, key, entList)
 			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				entList, er = listQuery.All(ctx)
@@ -229,7 +243,7 @@ func (r *groupRepo) List(
 		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
 			var entList []*ent.Group
 			// get cache
-			er := r.data.cache.Get(ctx, key, entList)
+			er := r.data.cache.GetSkippingLocalCache(ctx, key, entList)
 			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				entList, er = listQuery.
@@ -247,10 +261,11 @@ func (r *groupRepo) List(
 	case err == nil: // db hit, set cache
 		entList := res.([]*ent.Group)
 		if err = r.data.cache.Set(&cache.Item{
-			Ctx:   ctx,
-			Key:   key,
-			Value: entList,
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			Ctx:            ctx,
+			Key:            key,
+			Value:          entList,
+			TTL:            r.data.conf.Redis.CacheExpiration.AsDuration(),
+			SkipLocalCache: true,
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
@@ -327,16 +342,28 @@ func (r *groupRepo) cacheKeyPrefix(unique string, a ...string) string {
 	return groupCacheKey + s + ":" + unique
 }
 
-func (r *groupRepo) flushKeysByPrefix(ctx context.Context, prefix ...string) error {
+// deleteCache delete the cache both local cache and redis
+func (r *groupRepo) deleteCache(ctx context.Context, key ...string) error {
+	for _, k := range key {
+		if err := r.data.cache.Delete(ctx, k); err != nil {
+			return v1.ErrorInternalError("delete cache error: %v", err)
+		}
+	}
+	return nil
+}
+
+// deleteKeysByScanPrefix delete the keys by scan the prefix on redis,
+// notice that this function will not delete the keys on local cache
+func (r *groupRepo) deleteKeysByScanPrefix(ctx context.Context, prefix ...string) error {
 	for _, p := range prefix {
 		iter := r.data.rdCmd.Scan(ctx, 0, p+":*", 0).Iterator()
 		for iter.Next(ctx) {
 			if err := r.data.rdCmd.Del(ctx, iter.Val()).Err(); err != nil {
-				return v1.ErrorInternalError("flush group cache keys by prefix error: %v", err)
+				return v1.ErrorInternalError("delete group cache keys by scan prefix error: %v", err)
 			}
 		}
 		if err := iter.Err(); err != nil {
-			return v1.ErrorInternalError("flush group cache keys by prefix error: %v", err)
+			return v1.ErrorInternalError("delete group cache keys by scan prefix error: %v", err)
 		}
 	}
 	return nil

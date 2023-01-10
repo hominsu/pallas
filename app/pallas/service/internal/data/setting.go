@@ -134,8 +134,8 @@ func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting,
 	}
 	switch {
 	case err == nil:
-		// delete id indexed cache
-		if err = r.flushKeysByPrefix(
+		// delete indexed cache
+		if err = r.deleteCache(
 			ctx,
 			// key: setting_cache_key_get_setting_id:settingId
 			r.cacheKeyPrefix(strconv.FormatInt(int64(res.ID), 10), "get", "setting", "id"),
@@ -169,8 +169,8 @@ func (r *settingRepo) Delete(ctx context.Context, id int64) error {
 	err = r.data.db.Setting.DeleteOneID(int(id)).Exec(ctx)
 	switch {
 	case err == nil:
-		// delete id indexed cache
-		if err = r.flushKeysByPrefix(
+		// delete indexed cache
+		if err = r.deleteCache(
 			ctx,
 			// key: setting_cache_key_get_setting_id:settingId
 			r.cacheKeyPrefix(strconv.FormatInt(id, 10), "get", "setting", "id"),
@@ -310,16 +310,11 @@ func (r *settingRepo) cacheKeyPrefix(unique string, a ...string) string {
 	return settingCacheKey + s + ":" + unique
 }
 
-func (r *settingRepo) flushKeysByPrefix(ctx context.Context, prefix ...string) error {
-	for _, p := range prefix {
-		iter := r.data.rdCmd.Scan(ctx, 0, p+":*", 0).Iterator()
-		for iter.Next(ctx) {
-			if err := r.data.rdCmd.Del(ctx, iter.Val()).Err(); err != nil {
-				return v1.ErrorInternalError("flush user cache keys by prefix error: %v", err)
-			}
-		}
-		if err := iter.Err(); err != nil {
-			return v1.ErrorInternalError("flush user cache keys by prefix error: %v", err)
+// deleteCache delete the cache both local cache and redis
+func (r *settingRepo) deleteCache(ctx context.Context, key ...string) error {
+	for _, k := range key {
+		if err := r.data.cache.Delete(ctx, k); err != nil {
+			return v1.ErrorInternalError("delete cache error: %v", err)
 		}
 	}
 	return nil
