@@ -89,10 +89,7 @@ func Migration(entClient *ent.Client, logger log.Logger) *Default {
 
 func checkMigration(ctx context.Context, client *ent.Client) bool {
 	res := client.Setting.Query().Where(setting.NameEQ("migration")).OnlyX(ctx)
-	if res.Value == "true" {
-		return true
-	}
-	return false
+	return res.Value == "true"
 }
 
 func getDefaultGroup(ctx context.Context, client *ent.Client) ([]*ent.Group, error) {

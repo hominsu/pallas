@@ -13,6 +13,7 @@ import (
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/migrate"
 	"github.com/hominsu/pallas/pkg/sessions"
+
 	// driver
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
