@@ -2,11 +2,13 @@ package data
 
 import (
 	"context"
-	"fmt"
-	"time"
+	"errors"
+	"strconv"
+	"strings"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-redis/cache/v8"
 	"golang.org/x/sync/singleflight"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
@@ -16,6 +18,8 @@ import (
 )
 
 var _ biz.SettingRepo = (*settingRepo)(nil)
+
+const settingCacheKey = "setting_cache_key_"
 
 type settingRepo struct {
 	data *Data
@@ -56,43 +60,67 @@ func (r *settingRepo) Create(ctx context.Context, s *biz.Setting) (*biz.Setting,
 }
 
 func (r *settingRepo) Get(ctx context.Context, id int64) (*biz.Setting, error) {
-	res, err, _ := r.sg.Do(fmt.Sprintf("get_setting_by_id_%d", id),
-		func() (interface{}, error) {
-			get, err := r.data.db.Setting.Get(ctx, int(id))
-			switch {
-			case err == nil:
-				return toSetting(get)
-			case ent.IsNotFound(err):
-				return nil, v1.ErrorNotFoundError("not found: %s", err)
-			default:
-				return nil, v1.ErrorUnknownError("unknown error: %s", err)
-			}
-		})
-	if err != nil {
-		return nil, err
+	// key: setting_cache_key_get_setting_id:settingId
+	key := r.cacheKeyPrefix(strconv.FormatInt(id, 10), "get", "setting", "id")
+	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
+		get := &ent.Setting{}
+		// get cache
+		err := r.data.cache.Get(ctx, key, get)
+		if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
+			// get from db
+			get, err = r.data.db.Setting.Get(ctx, int(id))
+		}
+		return get, err
+	})
+	switch {
+	case err == nil: // db hit, set cache
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: res.(*ent.Setting),
+			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
+		return toSetting(res.(*ent.Setting))
+	case ent.IsNotFound(err): // db miss
+		return nil, v1.ErrorNotFoundError("not found: %s", err)
+	default: // error
+		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
-	return res.(*biz.Setting), nil
 }
 
 func (r *settingRepo) GetByName(ctx context.Context, name string) (*biz.Setting, error) {
-	res, err, _ := r.sg.Do(fmt.Sprintf("get_setting_by_name_%s", name),
-		func() (interface{}, error) {
-			get, err := r.data.db.Setting.Query().
+	// key: setting_cache_key_get_setting_id:settingId
+	key := r.cacheKeyPrefix(name, "get", "setting", "name")
+	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
+		get := &ent.Setting{}
+		// get cache
+		err := r.data.cache.Get(ctx, key, get)
+		if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
+			// get from db
+			get, err = r.data.db.Setting.Query().
 				Where(setting.NameEQ(name)).
 				Only(ctx)
-			switch {
-			case err == nil:
-				return toSetting(get)
-			case ent.IsNotFound(err):
-				return nil, v1.ErrorNotFoundError("not found: %s", err)
-			default:
-				return nil, v1.ErrorUnknownError("unknown error: %s", err)
-			}
-		})
-	if err != nil {
-		return nil, err
+		}
+		return get, err
+	})
+	switch {
+	case err == nil: // db hit, set cache
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: res.(*ent.User),
+			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
+		return toSetting(res.(*ent.Setting))
+	case ent.IsNotFound(err): // db miss
+		return nil, v1.ErrorNotFoundError("not found: %s", err)
+	default: // error
+		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
-	return res.(*biz.Setting), nil
 }
 
 func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting, error) {
@@ -106,11 +134,21 @@ func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting,
 	}
 	switch {
 	case err == nil:
-		u, er := toSetting(res)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", er)
+		// delete id indexed cache
+		if err = r.flushKeysByPrefix(
+			ctx,
+			// key: setting_cache_key_get_setting_id:settingId
+			r.cacheKeyPrefix(strconv.FormatInt(int64(res.ID), 10), "get", "setting", "id"),
+			// key: setting_cache_key_get_setting_id:settingId
+			r.cacheKeyPrefix(res.Name, "get", "setting", "name"),
+			// key: setting_cache_key_list_group:all
+			r.cacheKeyPrefix("all", "list", "group"),
+			// key: setting_cache_key_list_group_type:settingType
+			r.cacheKeyPrefix(res.Type.String(), "list", "group", "type"),
+		); err != nil {
+			r.log.Error(err)
 		}
-		return u, nil
+		return toSetting(res)
 	case sqlgraph.IsUniqueConstraintError(err):
 		return nil, v1.ErrorAlreadyExistsError("setting already exists: %s", err)
 	case ent.IsConstraintError(err):
@@ -122,9 +160,29 @@ func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting,
 }
 
 func (r *settingRepo) Delete(ctx context.Context, id int64) error {
-	err := r.data.db.Setting.DeleteOneID(int(id)).Exec(ctx)
+	// get deleted setting from db
+	res, err := r.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	err = r.data.db.Setting.DeleteOneID(int(id)).Exec(ctx)
 	switch {
 	case err == nil:
+		// delete id indexed cache
+		if err = r.flushKeysByPrefix(
+			ctx,
+			// key: setting_cache_key_get_setting_id:settingId
+			r.cacheKeyPrefix(strconv.FormatInt(id, 10), "get", "setting", "id"),
+			// key: setting_cache_key_get_setting_id:settingId
+			r.cacheKeyPrefix(res.Name, "get", "setting", "name"),
+			// key: setting_cache_key_list_group:all
+			r.cacheKeyPrefix("all", "list", "group"),
+			// key: setting_cache_key_list_group_type:settingType
+			r.cacheKeyPrefix(res.Type.String(), "list", "group", "type"),
+		); err != nil {
+			r.log.Error(err)
+		}
 		return nil
 	case ent.IsNotFound(err):
 		return v1.ErrorNotFoundError("not found: %s", err)
@@ -135,34 +193,76 @@ func (r *settingRepo) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
-	listQuery := r.data.db.Setting.Query()
-	entList, err := listQuery.All(ctx)
+	// key: setting_cache_key_list_group:all
+	key := r.cacheKeyPrefix("all", "list", "group")
+	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
+		var entList []*ent.Setting
+		// get cache
+		err := r.data.cache.Get(ctx, key, entList)
+		if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
+			// get from db
+			entList, err = r.data.db.Setting.Query().All(ctx)
+		}
+		return entList, err
+	})
+
 	switch {
-	case err == nil:
+	case err == nil: // db hit, set cache
+		entList := res.([]*ent.Setting)
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: entList,
+			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
 		settingList, er := toSettingsList(entList)
 		if er != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", er)
 		}
 		return settingList, nil
-	default:
-		r.log.Errorf("unknown err: %v", err)
+	case ent.IsNotFound(err): // db miss
+		return nil, v1.ErrorNotFoundError("not found: %s", err)
+	default: // error
 		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
 }
 
 func (r *settingRepo) ListByType(ctx context.Context, t biz.SettingType) ([]*biz.Setting, error) {
-	listQuery := r.data.db.Setting.Query().
-		Where(setting.TypeEQ(toEntSettingType(t)))
-	entList, err := listQuery.All(ctx)
+	// key: setting_cache_key_list_group_type:settingType
+	key := r.cacheKeyPrefix(t.String(), "list", "group", "type")
+	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
+		var entList []*ent.Setting
+		// get cache
+		err := r.data.cache.Get(ctx, key, entList)
+		if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
+			// get from db
+			entList, err = r.data.db.Setting.Query().
+				Where(setting.TypeEQ(toEntSettingType(t))).
+				All(ctx)
+		}
+		return entList, err
+	})
 	switch {
-	case err == nil:
+	case err == nil: // db hit, set cache
+		entList := res.([]*ent.Setting)
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: entList,
+			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
 		settingList, er := toSettingsList(entList)
 		if er != nil {
 			return nil, v1.ErrorInternalError("internal error: %s", er)
 		}
 		return settingList, nil
-	default:
-		r.log.Errorf("unknown err: %v", err)
+	case ent.IsNotFound(err): // db miss
+		return nil, v1.ErrorNotFoundError("not found: %s", err)
+	default: // error
 		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
 }
@@ -202,10 +302,27 @@ func (r *settingRepo) createBuilder(setting *biz.Setting) (*ent.SettingCreate, e
 	m.SetName(setting.Name)
 	m.SetValue(setting.Value)
 	m.SetType(toEntSettingType(setting.Type))
-	now := time.Now()
-	m.SetCreatedAt(now)
-	m.SetUpdatedAt(now)
 	return m, nil
+}
+
+func (r *settingRepo) cacheKeyPrefix(unique string, a ...string) string {
+	s := strings.Join(a, "_")
+	return settingCacheKey + s + ":" + unique
+}
+
+func (r *settingRepo) flushKeysByPrefix(ctx context.Context, prefix ...string) error {
+	for _, p := range prefix {
+		iter := r.data.rdCmd.Scan(ctx, 0, p+":*", 0).Iterator()
+		for iter.Next(ctx) {
+			if err := r.data.rdCmd.Del(ctx, iter.Val()).Err(); err != nil {
+				return v1.ErrorInternalError("flush user cache keys by prefix error: %v", err)
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return v1.ErrorInternalError("flush user cache keys by prefix error: %v", err)
+		}
+	}
+	return nil
 }
 
 func toSettingType(e setting.Type) biz.SettingType { return biz.SettingType(e) }
