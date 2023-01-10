@@ -163,9 +163,7 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 }
 
 func (r *groupRepo) Delete(ctx context.Context, groupId int64) error {
-	var err error
-	id := int(groupId)
-	err = r.data.db.Group.DeleteOneID(id).Exec(ctx)
+	err := r.data.db.Group.DeleteOneID(int(groupId)).Exec(ctx)
 	switch {
 	case err == nil:
 		// delete id indexed cache
