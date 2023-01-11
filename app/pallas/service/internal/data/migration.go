@@ -106,7 +106,7 @@ func createDefaultGroup(ctx context.Context, client *ent.Client) {
 }
 
 func createDefaultUser(ctx context.Context, client *ent.Client, helper *log.Helper) {
-	password := utils.GeneratePassword(20, 2, 2, 2)
+	password := utils.RandString(20, utils.AllCharSet)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 8)
 	if err != nil {
 		panic(err)
