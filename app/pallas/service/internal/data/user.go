@@ -283,7 +283,7 @@ func (r *userRepo) List(
 ) (*biz.UserPage, error) {
 	// list users
 	listQuery := r.data.db.User.Query().
-		Order(ent.Asc(user.FieldCreatedAt)).
+		Order(ent.Asc(user.FieldID)).
 		Limit(pageSize + 1)
 	if pageToken != "" {
 		token, er := pagination.DecodePageToken(pageToken)
@@ -302,11 +302,14 @@ func (r *userRepo) List(
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_list_user:pageSize_pageToken
-		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "user")
+		key = r.cacheKeyPrefix(
+			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
+			"list", "user",
+		)
 		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
 			var entList []*ent.User
 			// get cache
-			er := r.data.cache.GetSkippingLocalCache(ctx, key, entList)
+			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
 			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				entList, er = listQuery.All(ctx)
@@ -315,11 +318,14 @@ func (r *userRepo) List(
 		})
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_list_user_edge_ids:pageSize_pageToken
-		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "user", "edge_ids")
+		key = r.cacheKeyPrefix(
+			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
+			"list", "user", "edge_ids",
+		)
 		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
 			var entList []*ent.User
 			// get cache
-			er := r.data.cache.GetSkippingLocalCache(ctx, key, entList)
+			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
 			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				entList, er = listQuery.WithOwnerGroup(func(query *ent.GroupQuery) {
@@ -454,6 +460,7 @@ func toEntUserStatus(u biz.UserStatus) user.Status { return user.Status(u) }
 func toUser(e *ent.User) (*biz.User, error) {
 	u := &biz.User{}
 	u.Id = int64(e.ID)
+	u.GroupId = int64(e.GroupID)
 	u.Email = e.Email
 	u.NickName = e.NickName
 	u.Password = string(e.PasswordHash)

@@ -226,11 +226,14 @@ func (r *groupRepo) List(
 	switch groupView {
 	case biz.GroupViewViewUnspecified, biz.GroupViewBasic:
 		// key: group_cache_key_list_group:pageSize_pageToken
-		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "group")
+		key = r.cacheKeyPrefix(
+			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
+			"list", "group",
+		)
 		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
 			var entList []*ent.Group
 			// get cache
-			er := r.data.cache.GetSkippingLocalCache(ctx, key, entList)
+			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
 			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				entList, er = listQuery.All(ctx)
@@ -239,11 +242,14 @@ func (r *groupRepo) List(
 		})
 	case biz.GroupViewWithEdgeIds:
 		// key: group_cache_key_list_group:pageSize_pageToken
-		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "group", "edge_ids")
+		key = r.cacheKeyPrefix(
+			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
+			"list", "group", "edge_ids",
+		)
 		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
 			var entList []*ent.Group
 			// get cache
-			er := r.data.cache.GetSkippingLocalCache(ctx, key, entList)
+			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
 			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				entList, er = listQuery.

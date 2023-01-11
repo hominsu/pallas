@@ -198,7 +198,7 @@ func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
 	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
 		var entList []*ent.Setting
 		// get cache
-		err := r.data.cache.Get(ctx, key, entList)
+		err := r.data.cache.Get(ctx, key, &entList)
 		if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
 			// get from db
 			entList, err = r.data.db.Setting.Query().All(ctx)
@@ -235,7 +235,7 @@ func (r *settingRepo) ListByType(ctx context.Context, t biz.SettingType) ([]*biz
 	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
 		var entList []*ent.Setting
 		// get cache
-		err := r.data.cache.Get(ctx, key, entList)
+		err := r.data.cache.Get(ctx, key, &entList)
 		if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
 			// get from db
 			entList, err = r.data.db.Setting.Query().
