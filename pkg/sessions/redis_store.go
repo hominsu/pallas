@@ -121,7 +121,7 @@ func NewRedisStore(rdCmd redis.Cmdable, keyPairs ...[]byte) (*RedisStore, error)
 		},
 		DefaultMaxAge: 60 * 20, // 20 minutes seems like a reasonable default
 		maxLength:     4096,
-		keyPrefix:     "session_",
+		keyPrefix:     "pallas_session:",
 		serializer:    GobSerializer{},
 	}
 	return rs, nil

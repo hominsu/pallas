@@ -198,8 +198,8 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		// delete id indexed cache
-		if err = r.flushKeysByPrefix(
+		// delete indexed cache
+		if err = r.deleteCache(
 			ctx,
 			// key: user_cache_key_get_user_id:userId
 			r.cacheKeyPrefix(strconv.FormatInt(int64(res.ID), 10), "get", "user", "id"),
@@ -209,6 +209,13 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 			r.cacheKeyPrefix(res.Email, "get", "user", "email"),
 			// key: user_cache_key_get_user_edge_ids:userEmail
 			r.cacheKeyPrefix(res.Email, "get", "user", "email", "edge_ids"),
+		); err != nil {
+			r.log.Error(err)
+		}
+
+		// delete cache by scan redis
+		if err = r.deleteKeysByScanPrefix(
+			ctx,
 			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
 			userCacheKey+"list_user",
 		); err != nil {
@@ -236,8 +243,8 @@ func (r *userRepo) Delete(ctx context.Context, userId int64) error {
 	err = r.data.db.User.DeleteOneID(int(userId)).Exec(ctx)
 	switch {
 	case err == nil:
-		// delete id indexed cache
-		if err = r.flushKeysByPrefix(
+		// delete indexed cache
+		if err = r.deleteCache(
 			ctx,
 			// key: user_cache_key_get_user_id:userId
 			r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id"),
@@ -247,6 +254,13 @@ func (r *userRepo) Delete(ctx context.Context, userId int64) error {
 			r.cacheKeyPrefix(res.Email, "get", "user", "email"),
 			// key: user_cache_key_get_user_edge_ids:userEmail
 			r.cacheKeyPrefix(res.Email, "get", "user", "email", "edge_ids"),
+		); err != nil {
+			r.log.Error(err)
+		}
+
+		// delete cache by scan redis
+		if err = r.deleteKeysByScanPrefix(
+			ctx,
 			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
 			userCacheKey+"list_user",
 		); err != nil {
@@ -269,7 +283,7 @@ func (r *userRepo) List(
 ) (*biz.UserPage, error) {
 	// list users
 	listQuery := r.data.db.User.Query().
-		Order(ent.Asc(user.FieldCreatedAt)).
+		Order(ent.Asc(user.FieldID)).
 		Limit(pageSize + 1)
 	if pageToken != "" {
 		token, er := pagination.DecodePageToken(pageToken)
@@ -288,11 +302,14 @@ func (r *userRepo) List(
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_list_user:pageSize_pageToken
-		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "user")
+		key = r.cacheKeyPrefix(
+			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
+			"list", "user",
+		)
 		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
 			var entList []*ent.User
 			// get cache
-			er := r.data.cache.Get(ctx, key, entList)
+			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
 			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				entList, er = listQuery.All(ctx)
@@ -301,11 +318,14 @@ func (r *userRepo) List(
 		})
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_list_user_edge_ids:pageSize_pageToken
-		key = r.cacheKeyPrefix(strconv.FormatInt(int64(pageSize), 10)+pageToken, "list", "user", "edge_ids")
+		key = r.cacheKeyPrefix(
+			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
+			"list", "user", "edge_ids",
+		)
 		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
 			var entList []*ent.User
 			// get cache
-			er := r.data.cache.Get(ctx, key, entList)
+			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
 			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				entList, er = listQuery.WithOwnerGroup(func(query *ent.GroupQuery) {
@@ -322,10 +342,11 @@ func (r *userRepo) List(
 	case err == nil: // db hit, set cache
 		entList := res.([]*ent.User)
 		if err = r.data.cache.Set(&cache.Item{
-			Ctx:   ctx,
-			Key:   key,
-			Value: entList,
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			Ctx:            ctx,
+			Key:            key,
+			Value:          entList,
+			TTL:            r.data.conf.Redis.CacheExpiration.AsDuration(),
+			SkipLocalCache: true,
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
@@ -405,16 +426,28 @@ func (r *userRepo) cacheKeyPrefix(unique string, a ...string) string {
 	return userCacheKey + s + ":" + unique
 }
 
-func (r *userRepo) flushKeysByPrefix(ctx context.Context, prefix ...string) error {
+// deleteCache delete the cache both local cache and redis
+func (r *userRepo) deleteCache(ctx context.Context, key ...string) error {
+	for _, k := range key {
+		if err := r.data.cache.Delete(ctx, k); err != nil {
+			return v1.ErrorInternalError("delete cache error: %v", err)
+		}
+	}
+	return nil
+}
+
+// deleteKeysByScanPrefix delete the keys by scan the prefix on redis,
+// notice that this function will not delete the keys on local cache
+func (r *userRepo) deleteKeysByScanPrefix(ctx context.Context, prefix ...string) error {
 	for _, p := range prefix {
 		iter := r.data.rdCmd.Scan(ctx, 0, p+":*", 0).Iterator()
 		for iter.Next(ctx) {
 			if err := r.data.rdCmd.Del(ctx, iter.Val()).Err(); err != nil {
-				return v1.ErrorInternalError("flush user cache keys by prefix error: %v", err)
+				return v1.ErrorInternalError("delete user cache keys by scan prefix error: %v", err)
 			}
 		}
 		if err := iter.Err(); err != nil {
-			return v1.ErrorInternalError("flush user cache keys by prefix error: %v", err)
+			return v1.ErrorInternalError("delete user cache keys by scan prefix error: %v", err)
 		}
 	}
 	return nil
@@ -427,6 +460,7 @@ func toEntUserStatus(u biz.UserStatus) user.Status { return user.Status(u) }
 func toUser(e *ent.User) (*biz.User, error) {
 	u := &biz.User{}
 	u.Id = int64(e.ID)
+	u.GroupId = int64(e.GroupID)
 	u.Email = e.Email
 	u.NickName = e.NickName
 	u.Password = string(e.PasswordHash)
