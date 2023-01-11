@@ -12,7 +12,7 @@ func DecodePageToken(pageToken string) (int, error) {
 	if err != nil {
 		return 0, errors.New("page token is invalid")
 	}
-	token, err := strconv.ParseInt(string(bytes), 10, 32)
+	token, err := strconv.ParseInt(string(bytes), 10, 64)
 	if err != nil {
 		return 0, errors.New("page token is invalid")
 	}
