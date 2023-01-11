@@ -218,9 +218,9 @@ func TestUserRepo_BatchCreateAndList(t *testing.T) {
 		var users []*biz.User
 		pageToken := ""
 		for {
-			userPage, err := tuRepo.List(context.TODO(), tl.pageSize, pageToken, biz.UserViewWithEdgeIds)
-			if err != nil {
-				t.Fatal(err)
+			userPage, er := tuRepo.List(context.TODO(), tl.pageSize, pageToken, biz.UserViewWithEdgeIds)
+			if er != nil {
+				t.Fatal(er)
 			}
 			users = append(users, userPage.Users...)
 			if userPage.NextPageToken == "" {
