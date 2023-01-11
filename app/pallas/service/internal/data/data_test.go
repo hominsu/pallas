@@ -41,25 +41,29 @@ var (
 		Ttl:     durationpb.New(time.Minute * 1),
 	}
 
-	data *Data
+	dd *Data
 )
 
 func FlushAll(t *testing.T) {
-	if err := data.rdCmd.FlushAll(context.TODO()).Err(); err != nil {
+	if err := dd.rdCmd.FlushDB(context.TODO()).Err(); err != nil {
 		t.Errorf("flush redis error: %v", err)
 	}
 
-	if _, err := data.db.User.Delete().Exec(context.TODO()); err != nil {
+	if _, err := dd.db.User.Delete().Exec(context.TODO()); err != nil {
 		t.Errorf("flush user table error: %v", err)
 	}
 
-	if _, err := data.db.Group.Delete().Exec(context.TODO()); err != nil {
+	if _, err := dd.db.Group.Delete().Exec(context.TODO()); err != nil {
 		t.Errorf("flush user table error: %v", err)
+	}
+
+	if _, err := dd.db.Setting.Delete().Exec(context.TODO()); err != nil {
+		t.Errorf("flush setting table error: %v", err)
 	}
 }
 
 func CheckDefault(t *testing.T) {
-	for k := range data.d.GroupsId {
+	for k := range dd.d.GroupsId {
 		if k != "Admin" && k != "User" && k != "Anonymous" {
 			t.Fatalf("expected default group: %s", k)
 		}
@@ -77,7 +81,6 @@ func TestMySQL(t *testing.T) {
 		cleanup func()
 	)
 	logger := log.With(log.NewStdLogger(os.Stdout))
-	helper := log.NewHelper(logger)
 
 	c := &conf.Data{
 		Database: MySQLConf,
@@ -90,9 +93,9 @@ func TestMySQL(t *testing.T) {
 	redisCache := NewRedisCache(redisCmd, c)
 	d := Migration(entClient, logger)
 
-	data, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
+	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {
-		helper.Fatal(err)
+		t.Fatal(err)
 	}
 	defer cleanup()
 
@@ -105,7 +108,6 @@ func TestPostgres(t *testing.T) {
 		cleanup func()
 	)
 	logger := log.With(log.NewStdLogger(os.Stdout))
-	helper := log.NewHelper(logger)
 
 	c := &conf.Data{
 		Database: PostgreSQLConf,
@@ -118,9 +120,9 @@ func TestPostgres(t *testing.T) {
 	redisCache := NewRedisCache(redisCmd, c)
 	d := Migration(entClient, logger)
 
-	data, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
+	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {
-		helper.Fatal(err)
+		t.Fatal(err)
 	}
 	defer cleanup()
 
@@ -133,7 +135,6 @@ func TestSQLite3(t *testing.T) {
 		cleanup func()
 	)
 	logger := log.With(log.NewStdLogger(os.Stdout))
-	helper := log.NewHelper(logger)
 
 	c := &conf.Data{
 		Database: SQLite3Conf,
@@ -146,9 +147,9 @@ func TestSQLite3(t *testing.T) {
 	redisCache := NewRedisCache(redisCmd, c)
 	d := Migration(entClient, logger)
 
-	data, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
+	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {
-		helper.Fatal(err)
+		t.Fatal(err)
 	}
 	defer cleanup()
 
