@@ -214,6 +214,7 @@ func toProtoUserStatus(u UserStatus) v1.User_Status {
 func ToUser(p *v1.User) (*User, error) {
 	u := &User{}
 	u.Id = p.GetId()
+	u.GroupId = p.GetGroupId()
 	u.Email = p.GetEmail()
 	u.NickName = p.GetNickName()
 	u.Password = p.GetPassword()
