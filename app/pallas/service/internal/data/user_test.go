@@ -15,6 +15,24 @@ import (
 	"github.com/hominsu/pallas/pkg/utils"
 )
 
+var testDBConf = []*conf.Data{
+	{
+		Database: MySQLConf,
+		Redis:    RedisConf,
+		Cache:    CacheConf,
+	},
+	{
+		Database: PostgreSQLConf,
+		Redis:    RedisConf,
+		Cache:    CacheConf,
+	},
+	{
+		Database: SQLite3Conf,
+		Redis:    RedisConf,
+		Cache:    CacheConf,
+	},
+}
+
 func newTestUserRepo(data *Data, logger log.Logger) *userRepo {
 	return &userRepo{
 		data: data,
@@ -23,14 +41,8 @@ func newTestUserRepo(data *Data, logger log.Logger) *userRepo {
 	}
 }
 
-func initData() (*userRepo, func(), error) {
+func initData(c *conf.Data) (*userRepo, func(), error) {
 	logger := log.With(log.NewStdLogger(os.Stdout))
-
-	c := &conf.Data{
-		Database: MySQLConf,
-		Redis:    RedisConf,
-		Cache:    CacheConf,
-	}
 
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
@@ -67,7 +79,13 @@ func flushAll(tuRepo *userRepo) error {
 }
 
 func TestUserRepo_CreateAndGet(t *testing.T) {
-	tuRepo, cleanup, err := initData()
+	for _, dbConf := range testDBConf {
+		testCreateAndGet(t, dbConf)
+	}
+}
+
+func testCreateAndGet(t *testing.T, dbConf *conf.Data) {
+	tuRepo, cleanup, err := initData(dbConf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +144,13 @@ func TestUserRepo_CreateAndGet(t *testing.T) {
 }
 
 func TestUserRepo_Delete(t *testing.T) {
-	tuRepo, cleanup, err := initData()
+	for _, dbConf := range testDBConf {
+		testDelete(t, dbConf)
+	}
+}
+
+func testDelete(t *testing.T, dbConf *conf.Data) {
+	tuRepo, cleanup, err := initData(dbConf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +184,13 @@ func TestUserRepo_Delete(t *testing.T) {
 }
 
 func TestUserRepo_BatchCreateAndList(t *testing.T) {
-	tuRepo, cleanup, err := initData()
+	for _, dbConf := range testDBConf {
+		testCreateAndList(t, dbConf)
+	}
+}
+
+func testCreateAndList(t *testing.T, dbConf *conf.Data) {
+	tuRepo, cleanup, err := initData(dbConf)
 	if err != nil {
 		t.Fatal(err)
 	}
