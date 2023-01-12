@@ -15,25 +15,23 @@ import (
 	"github.com/hominsu/pallas/pkg/utils"
 )
 
-var (
-	testDBConf = []*conf.Data{
-		{
-			Database: MySQLConf,
-			Redis:    RedisConf,
-			Cache:    CacheConf,
-		},
-		{
-			Database: PostgreSQLConf,
-			Redis:    RedisConf,
-			Cache:    CacheConf,
-		},
-		{
-			Database: SQLite3Conf,
-			Redis:    RedisConf,
-			Cache:    CacheConf,
-		},
-	}
-)
+var testDBConf = []*conf.Data{
+	{
+		Database: MySQLConf,
+		Redis:    RedisConf,
+		Cache:    CacheConf,
+	},
+	{
+		Database: PostgreSQLConf,
+		Redis:    RedisConf,
+		Cache:    CacheConf,
+	},
+	{
+		Database: SQLite3Conf,
+		Redis:    RedisConf,
+		Cache:    CacheConf,
+	},
+}
 
 func newTestUserRepo(data *Data, logger log.Logger) *userRepo {
 	return &userRepo{
