@@ -14,39 +14,39 @@ init:
 .PHONY: api
 # generate api
 api:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) api'
+	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) api'
 
 .PHONY: conf
 # generate proto
 conf:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) conf'
-
-.PHONY: wire
-# generate wire
-wire:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) wire'
+	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) conf'
 
 .PHONY: generate
 # generate generate
 generate:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) generate'
+	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) generate'
+
+.PHONY: wire
+# generate wire
+wire:
+	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) wire'
 
 .PHONY: build
 # generate build
 build:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) build'
+	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) build'
 
 .PHONY: test
 # generate test
 test:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) test'
+	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) test'
 
 .PHONY: docker
 # generate docker
 docker:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) docker'
+	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) docker'
 
 .PHONY: buildx
 # generate buildx
 buildx:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -L 1 bash -c 'cd "$$0" && pwd && $(MAKE) buildx'
+	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) buildx'
