@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-redis/cache/v8"
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/cache/v9"
 	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent"

@@ -12,8 +12,8 @@ import (
 	"time"
 
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
-	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/securecookie"
+	"github.com/redis/go-redis/v9"
 )
 
 // Amount of time for cookies/redis keys to expire.
@@ -188,7 +188,7 @@ func (s *RedisStore) save(ctx context.Context, session *Session) error {
 	if age == 0 {
 		age = s.DefaultMaxAge
 	}
-	err = s.rdCmd.SetEX(ctx, s.keyPrefix+session.ID, b, time.Duration(age)*time.Second).Err()
+	err = s.rdCmd.SetEx(ctx, s.keyPrefix+session.ID, b, time.Duration(age)*time.Second).Err()
 	return err
 }
 
