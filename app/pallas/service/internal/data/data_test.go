@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
+	"github.com/hominsu/pallas/pkg/srp"
 )
 
 var (
@@ -29,11 +31,10 @@ var (
 	}
 
 	RedisConf = &conf.Data_Redis{
-		Addr:            "redis:6379",
-		Db:              1,
-		CacheExpiration: durationpb.New(time.Second * 1800),
-		ReadTimeout:     durationpb.New(time.Millisecond * 200),
-		WriteTimeout:    durationpb.New(time.Millisecond * 200),
+		Addr:         "redis:6379",
+		Db:           1,
+		ReadTimeout:  durationpb.New(time.Millisecond * 200),
+		WriteTimeout: durationpb.New(time.Millisecond * 200),
 	}
 
 	CacheConf = &conf.Data_Cache{
@@ -88,10 +89,13 @@ func TestMySQL(t *testing.T) {
 		Cache:    CacheConf,
 	}
 
+	params, err := srp.GetParams(2048)
+	assert.NoError(t, err)
+
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, logger)
+	d := Migration(entClient, params, logger)
 
 	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {
@@ -115,10 +119,13 @@ func TestPostgres(t *testing.T) {
 		Cache:    CacheConf,
 	}
 
+	params, err := srp.GetParams(2048)
+	assert.NoError(t, err)
+
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, logger)
+	d := Migration(entClient, params, logger)
 
 	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {
@@ -142,10 +149,13 @@ func TestSQLite3(t *testing.T) {
 		Cache:    CacheConf,
 	}
 
+	params, err := srp.GetParams(2048)
+	assert.NoError(t, err)
+
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, logger)
+	d := Migration(entClient, params, logger)
 
 	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {

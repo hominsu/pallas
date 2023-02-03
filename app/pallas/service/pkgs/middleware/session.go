@@ -19,6 +19,7 @@ type ContextKey string
 
 const (
 	ContextKeyUserId     ContextKey = "userid"
+	ContextKeyUserK      ContextKey = "user-k"
 	ContextKeyRemoteAddr ContextKey = "remote-addr"
 )
 
@@ -26,6 +27,7 @@ type SessionKey string
 
 const (
 	SessionKeyUserId SessionKey = "userid"
+	SessionKeyUserK  SessionKey = "user-k"
 )
 
 var ErrGetSessionStoreFail = errors.Unauthorized(unauthorized, "get session error")
@@ -39,9 +41,14 @@ func Session(store *sessions.RedisStore, name string) middleware.Middleware {
 					if err != nil {
 						return nil, ErrGetSessionStoreFail
 					}
-					if id, ok := session.Values[string(SessionKeyUserId)]; ok {
-						if userId, ok := id.(int64); ok {
-							ctx = context.WithValue(ctx, ContextKeyUserId, userId)
+					if userId, ok := session.Values[string(SessionKeyUserId)]; ok {
+						if id, ok := userId.(int64); ok {
+							ctx = context.WithValue(ctx, ContextKeyUserId, id)
+						}
+					}
+					if userK, ok := session.Values[string(SessionKeyUserK)]; ok {
+						if k, ok := userK.([]byte); ok {
+							ctx = context.WithValue(ctx, ContextKeyUserK, k)
 						}
 					}
 				}

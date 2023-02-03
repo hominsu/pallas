@@ -13,6 +13,7 @@ import (
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/migrate"
 	"github.com/hominsu/pallas/pkg/sessions"
+	"github.com/hominsu/pallas/pkg/srp"
 
 	// driver
 	_ "github.com/go-sql-driver/mysql"
@@ -26,6 +27,7 @@ var ProviderSet = wire.NewSet(
 	NewRedisCmd,
 	NewRedisCache,
 	NewRedisStore,
+	NewSRPParams,
 	NewUserRepo,
 	NewGroupRepo,
 	NewSettingRepo,
@@ -128,4 +130,15 @@ func NewRedisStore(rdCmd redis.Cmdable, conf *conf.Secret, logger log.Logger) *s
 	}
 
 	return store
+}
+
+func NewSRPParams(secret *conf.Secret, logger log.Logger) *srp.Params {
+	helper := log.NewHelper(log.With(logger, "module", "data/srp-params"))
+
+	params, err := srp.GetParams(int(secret.Srp.GetSrpParams()))
+	if err != nil {
+		helper.Fatalf("failed init params")
+	}
+
+	return params
 }

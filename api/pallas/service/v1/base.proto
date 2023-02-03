@@ -23,13 +23,12 @@ message User {
   int64 group_id = 2;
   string email = 3 [(validate.rules).string = {ignore_empty: true, email: true}];
   string nick_name = 4;
-  string password = 5;
-  uint64 storage = 6;
-  int64 score = 7;
-  Status status = 8;
-  google.protobuf.Timestamp created_at = 9;
-  google.protobuf.Timestamp updated_at = 10;
-  Group owner_group = 11;
+  uint64 storage = 5;
+  int64 score = 6;
+  Status status = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  Group owner_group = 10;
 
   enum Status {
     NON_ACTIVATED = 0;

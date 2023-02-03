@@ -78,7 +78,7 @@ func (r *settingRepo) Get(ctx context.Context, id int64) (*biz.Setting, error) {
 			Ctx:   ctx,
 			Key:   key,
 			Value: res.(*ent.Setting),
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:   r.data.conf.Cache.Ttl.AsDuration(),
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
@@ -111,7 +111,7 @@ func (r *settingRepo) GetByName(ctx context.Context, name string) (*biz.Setting,
 			Ctx:   ctx,
 			Key:   key,
 			Value: res.(*ent.User),
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:   r.data.conf.Cache.Ttl.AsDuration(),
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
@@ -213,7 +213,7 @@ func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
 			Ctx:   ctx,
 			Key:   key,
 			Value: entList,
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:   r.data.conf.Cache.Ttl.AsDuration(),
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
@@ -251,7 +251,7 @@ func (r *settingRepo) ListByType(ctx context.Context, t biz.SettingType) ([]*biz
 			Ctx:   ctx,
 			Key:   key,
 			Value: entList,
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:   r.data.conf.Cache.Ttl.AsDuration(),
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}

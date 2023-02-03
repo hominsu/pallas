@@ -111,7 +111,7 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 			Ctx:   ctx,
 			Key:   key,
 			Value: res.(*ent.Group),
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:   r.data.conf.Cache.Ttl.AsDuration(),
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
@@ -270,7 +270,7 @@ func (r *groupRepo) List(
 			Ctx:            ctx,
 			Key:            key,
 			Value:          entList,
-			TTL:            r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:            r.data.conf.Cache.Ttl.AsDuration(),
 			SkipLocalCache: true,
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)

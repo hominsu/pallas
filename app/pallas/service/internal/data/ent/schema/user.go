@@ -33,19 +33,22 @@ func (User) Fields() []ent.Field {
 			Annotations(entproto.Field(3)),
 		field.String("nick_name").
 			Annotations(entproto.Field(4)),
-		field.Bytes("password_hash").
+		field.Bytes("salt").
 			Sensitive().
 			Annotations(entproto.Field(5)),
-		field.Uint64("storage").
+		field.Bytes("verifier").
+			Sensitive().
 			Annotations(entproto.Field(6)),
+		field.Uint64("storage").
+			Annotations(entproto.Field(7)),
 		field.Int("score").
 			Default(0).
-			Annotations(entproto.Field(7)),
+			Annotations(entproto.Field(8)),
 		field.Enum("status").
 			Values("non_activated", "active", "banned", "overuse_baned").
 			Default("non_activated").
 			Annotations(
-				entproto.Field(8),
+				entproto.Field(9),
 				entproto.Enum(map[string]int32{
 					"non_activated": 0,
 					"active":        1,
@@ -61,11 +64,11 @@ func (User) Mixin() []ent.Mixin {
 	return []ent.Mixin{
 		mixin.AnnotateFields(
 			CreateTimeMixin{},
-			entproto.Field(9),
+			entproto.Field(10),
 		),
 		mixin.AnnotateFields(
 			UpdateTimeMixin{},
-			entproto.Field(10),
+			entproto.Field(11),
 		),
 	}
 }
@@ -79,7 +82,7 @@ func (User) Edges() []ent.Edge {
 			// user cannot be created without its group
 			Required().
 			Field("group_id").
-			Annotations(entproto.Field(11)),
+			Annotations(entproto.Field(12)),
 	}
 }
 

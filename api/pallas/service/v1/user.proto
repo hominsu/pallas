@@ -11,7 +11,7 @@ import "validate/validate.proto";
 option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
 
 service UserService {
-  rpc Signup (SignupRequest) returns (User) {
+  rpc Signup (SignupRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v1/signup",
       body: "*",
@@ -22,14 +22,35 @@ service UserService {
     };
   };
 
-  rpc Signin (SigninRequest) returns (SigninReply) {
+  rpc SigninS (SigninSRequest) returns (SigninSReply) {
     option (google.api.http) = {
-      post: "/v1/signin",
+      get: "/v1/signin/s",
+    };
+
+    option (openapi.v3.operation) = {
+      description: "request salt by identify(email)";
+    };
+  };
+
+  rpc SigninA (SigninARequest) returns (SigninAReply) {
+    option (google.api.http) = {
+      post: "/v1/signin/a",
       body: "*",
     };
 
     option (openapi.v3.operation) = {
-      description: "signin";
+      description: "send A to server and get B";
+    };
+  };
+
+  rpc SigninM (SigninMRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/signin/m",
+      body: "*",
+    };
+
+    option (openapi.v3.operation) = {
+      description: "send M1 to server";
     };
   };
 
@@ -39,7 +60,7 @@ service UserService {
     };
 
     option (openapi.v3.operation) = {
-      description: "signin";
+      description: "sign-out";
     };
   };
 
@@ -65,16 +86,30 @@ service UserService {
 
 message SignupRequest {
   string email = 1 [(validate.rules).string = {ignore_empty: true, email: true}];
-  string password = 2;
+  bytes salt = 2;
+  bytes verifier = 3;
 }
 
-message SigninRequest {
+message SigninSRequest {
   string email = 1 [(validate.rules).string = {ignore_empty: true, email: true}];
-  string password = 2;
 }
 
-message SigninReply {
+message SigninSReply {
+  bytes salt = 1;
+}
 
+message SigninARequest {
+  string email = 1 [(validate.rules).string = {ignore_empty: true, email: true}];
+  bytes ephemeral_a = 2;
+}
+
+message SigninAReply {
+  bytes ephemeral_b = 1;
+}
+
+message SigninMRequest {
+  string email = 1 [(validate.rules).string = {ignore_empty: true, email: true}];
+  bytes m1 = 2;
 }
 
 message GetUserRequest {

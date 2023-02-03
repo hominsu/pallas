@@ -15,7 +15,7 @@ type Params struct {
 }
 
 // paramsGroup implement the SRP Group Parameters.
-// see http://tools.ietf.org/html/rfc5054#appendix-A for details
+// See http://tools.ietf.org/html/rfc5054#appendix-A for details
 var paramsGroup map[int]*Params
 
 func init() {
