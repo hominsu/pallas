@@ -61,9 +61,15 @@ jobs:
           path: |
             ~/.cache/go-build
             /go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.work.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
+      - name: Workspace
+        run: |
+          go work init
+          go work use -r ./app
+          go mod tidy
 
       - name: Generate
         run: |

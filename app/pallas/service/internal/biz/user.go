@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
+	"github.com/hominsu/pallas/pkg/srp"
 	"github.com/hominsu/pallas/pkg/utils"
 )
 
@@ -19,7 +19,8 @@ type User struct {
 	GroupId    int64      `json:"groupId,omitempty"`
 	Email      string     `json:"email,omitempty"`
 	NickName   string     `json:"nickName,omitempty"`
-	Password   string     `json:"password,omitempty"`
+	Salt       []byte     `json:"salt,omitempty"`
+	Verifier   []byte     `json:"verifier,omitempty"`
 	Storage    uint64     `json:"storage,omitempty"`
 	Score      int64      `json:"score,omitempty"`
 	Status     UserStatus `json:"status,omitempty"`
@@ -63,30 +64,32 @@ type UserRepo interface {
 	Delete(ctx context.Context, userId int64) error
 	List(ctx context.Context, pageSize int, pageToken string, userView UserView) (*UserPage, error)
 	BatchCreate(ctx context.Context, users []*User) ([]*User, error)
+
+	CacheSRPServer(ctx context.Context, email string, server *srp.Server) error
+	GetSRPServer(ctx context.Context, email string) (*srp.Server, error)
 }
 
 type UserUsecase struct {
-	repo UserRepo
+	repo   UserRepo
+	params *srp.Params
 
 	log *log.Helper
 }
 
-func NewUserUsecase(repo UserRepo, logger log.Logger) *UserUsecase {
+func NewUserUsecase(repo UserRepo, params *srp.Params, logger log.Logger) *UserUsecase {
 	return &UserUsecase{
-		repo: repo,
-		log:  log.NewHelper(logger),
+		repo:   repo,
+		params: params,
+		log:    log.NewHelper(logger),
 	}
 }
 
-func (uc *UserUsecase) Signup(ctx context.Context, email, password string) (*v1.User, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
-	if err != nil {
-		return nil, v1.ErrorGeneratePasswordError("generate password hash error: %s", err)
-	}
+func (uc *UserUsecase) Signup(ctx context.Context, email string, salt, verifier []byte) (*v1.User, error) {
 	u := &User{
 		Email:    email,
 		NickName: strings.Split(email, "@")[0],
-		Password: string(hashedPassword),
+		Salt:     salt,
+		Verifier: verifier,
 		Storage:  1 * utils.GibiByte,
 		Score:    0,
 		Status:   StatusActive,
@@ -96,7 +99,6 @@ func (uc *UserUsecase) Signup(ctx context.Context, email, password string) (*v1.
 		return nil, err
 	}
 
-	res.Password = ""
 	protoUser, err := ToProtoUser(res)
 	if err != nil {
 		return nil, err
@@ -105,24 +107,45 @@ func (uc *UserUsecase) Signup(ctx context.Context, email, password string) (*v1.
 	return protoUser, nil
 }
 
-func (uc *UserUsecase) Signin(ctx context.Context, email, password string) (*v1.User, error) {
-	res, err := uc.repo.GetByEmail(ctx, email, UserViewViewUnspecified)
+func (uc *UserUsecase) SigninA(ctx context.Context, email string, a []byte) ([]byte, error) {
+	secret, err := srp.GenKey()
+	if err != nil {
+		return nil, v1.ErrorInternalError("failed in gen key: %v", err)
+	}
+	verifier, err := uc.getUserVerifier(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(res.Password), []byte(password))
-	if err == bcrypt.ErrMismatchedHashAndPassword {
-		return nil, v1.ErrorPasswordMismatch("password mismatch")
+	server := srp.NewServer(uc.params, verifier, secret)
+	if err = server.SetA(a); err != nil {
+		return nil, v1.ErrorInternalError("failed in set a: %v", err)
 	}
-
-	res.Password = ""
-	protoUser, err := ToProtoUser(res)
-	if err != nil {
+	b := server.ComputeB()
+	if err = uc.repo.CacheSRPServer(ctx, email, server); err != nil {
 		return nil, err
 	}
+	return b, nil
+}
 
-	return protoUser, nil
+func (uc *UserUsecase) SigninM(ctx context.Context, email string, m1 []byte) (userid int64, k []byte, err error) {
+	server, err := uc.repo.GetSRPServer(ctx, email)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	_, err = server.CheckM1(m1)
+	if err != nil {
+		return 0, nil, v1.ErrorPasswordMismatch("password mismatch")
+	}
+
+	res, err := uc.repo.GetByEmail(ctx, email, UserViewBasic)
+	if err != nil {
+		return 0, nil, err
+	}
+	k = server.ComputeK()
+
+	return res.Id, k, nil
 }
 
 func (uc *UserUsecase) GetUser(ctx context.Context, userId int64) (*v1.User, error) {
@@ -131,7 +154,6 @@ func (uc *UserUsecase) GetUser(ctx context.Context, userId int64) (*v1.User, err
 		return nil, err
 	}
 
-	res.Password = ""
 	protoUser, err := ToProtoUser(res)
 	if err != nil {
 		return nil, err
@@ -140,19 +162,30 @@ func (uc *UserUsecase) GetUser(ctx context.Context, userId int64) (*v1.User, err
 	return protoUser, nil
 }
 
-func (uc *UserUsecase) UpdateUser(ctx context.Context, user *User) (*v1.User, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
+func (uc *UserUsecase) GetUserSalt(ctx context.Context, email string) ([]byte, error) {
+	res, err := uc.repo.GetByEmail(ctx, email, UserViewBasic)
 	if err != nil {
-		return nil, v1.ErrorGeneratePasswordError("generate password hash error: %s", err)
+		return nil, err
 	}
 
-	user.Password = string(hashedPassword)
+	return res.Salt, nil
+}
+
+func (uc *UserUsecase) getUserVerifier(ctx context.Context, email string) ([]byte, error) {
+	res, err := uc.repo.GetByEmail(ctx, email, UserViewBasic)
+	if err != nil {
+		return nil, err
+	}
+
+	return res.Verifier, nil
+}
+
+func (uc *UserUsecase) UpdateUser(ctx context.Context, user *User) (*v1.User, error) {
 	res, err := uc.repo.Update(ctx, user)
 	if err != nil {
 		return nil, err
 	}
 
-	res.Password = ""
 	protoUser, err := ToProtoUser(res)
 	if err != nil {
 		return nil, err
@@ -180,9 +213,6 @@ func (uc *UserUsecase) ListUsers(
 		return nil, "", err
 	}
 
-	for _, u := range page.Users {
-		u.Password = ""
-	}
 	protoUsers, err := ToProtoUserList(page.Users)
 	if err != nil {
 		return nil, "", err
@@ -217,7 +247,6 @@ func ToUser(p *v1.User) (*User, error) {
 	u.GroupId = p.GetGroupId()
 	u.Email = p.GetEmail()
 	u.NickName = p.GetNickName()
-	u.Password = p.GetPassword()
 	u.Storage = p.GetStorage()
 	u.Score = p.GetScore()
 	u.Status = toUserStatus(p.GetStatus())
@@ -250,7 +279,6 @@ func ToProtoUser(u *User) (*v1.User, error) {
 	p.GroupId = u.GroupId
 	p.Email = u.Email
 	p.NickName = u.NickName
-	p.Password = u.Password
 	p.Storage = u.Storage
 	p.Score = u.Score
 	p.Status = toProtoUserStatus(u.Status)

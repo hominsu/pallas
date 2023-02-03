@@ -10,12 +10,14 @@ data:
     addr: 127.0.0.1:6379
     password:
     db: 0
-    cache_expiration: 1800s
     read_timeout: 0.2s
     write_timeout: 0.2s
   cache:
     lfu_size: 1000
-    ttl: 60s
+    ttl: 1800s
+    srp_ttl: 0.5s
 secret:
   session:
     session_key: "hello"
+  srp:
+    srp_params: 2048

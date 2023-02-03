@@ -185,7 +185,7 @@ paths:
         delete:
             tags:
                 - UserService
-            description: signin
+            description: sign-out
             operationId: UserService_SignOut
             responses:
                 "200":
@@ -197,17 +197,17 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/signin:
+    /v1/signin/a:
         post:
             tags:
                 - UserService
-            description: signin
-            operationId: UserService_Signin
+            description: send A to server and get B
+            operationId: UserService_SigninA
             requestBody:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/SigninRequest'
+                            $ref: '#/components/schemas/SigninARequest'
                 required: true
             responses:
                 "200":
@@ -215,7 +215,53 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SigninReply'
+                                $ref: '#/components/schemas/SigninAReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/signin/m:
+        post:
+            tags:
+                - UserService
+            description: send M1 to server
+            operationId: UserService_SigninM
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SigninMRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/signin/s:
+        get:
+            tags:
+                - UserService
+            description: request salt by identify(email)
+            operationId: UserService_SigninS
+            parameters:
+                - name: email
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SigninSReply'
                 default:
                     description: Default error response
                     content:
@@ -237,10 +283,7 @@ paths:
             responses:
                 "200":
                     description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/User'
+                    content: {}
                 default:
                     description: Default error response
                     content:
@@ -406,23 +449,45 @@ components:
             properties:
                 version:
                     type: string
-        SigninReply:
+        SigninAReply:
             type: object
-            properties: {}
-        SigninRequest:
+            properties:
+                ephemeralB:
+                    type: string
+                    format: bytes
+        SigninARequest:
             type: object
             properties:
                 email:
                     type: string
-                password:
+                ephemeralA:
                     type: string
+                    format: bytes
+        SigninMRequest:
+            type: object
+            properties:
+                email:
+                    type: string
+                m1:
+                    type: string
+                    format: bytes
+        SigninSReply:
+            type: object
+            properties:
+                salt:
+                    type: string
+                    format: bytes
         SignupRequest:
             type: object
             properties:
                 email:
                     type: string
-                password:
+                salt:
                     type: string
+                    format: bytes
+                verifier:
+                    type: string
+                    format: bytes
         Status:
             type: object
             properties:
@@ -456,8 +521,6 @@ components:
                 email:
                     type: string
                 nickName:
-                    type: string
-                password:
                     type: string
                 storage:
                     type: integer

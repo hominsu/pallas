@@ -8,9 +8,9 @@ import (
 
 // ExecContext allows calling the underlying ExecContext method of the driver if it is supported by it.
 // See, database/sql#DB.ExecContext for more information.
-func (c *config) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (c *config) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	ex, ok := c.driver.(interface {
-		ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
+		ExecContext(context.Context, string, ...any) (sql.Result, error)
 	})
 	if !ok {
 		return nil, fmt.Errorf("Driver.ExecContext is not supported")
@@ -20,9 +20,9 @@ func (c *config) ExecContext(ctx context.Context, query string, args ...interfac
 
 // QueryContext allows calling the underlying QueryContext method of the driver if it is supported by it.
 // See, database/sql#DB.QueryContext for more information.
-func (c *config) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (c *config) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	q, ok := c.driver.(interface {
-		QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+		QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	})
 	if !ok {
 		return nil, fmt.Errorf("Driver.QueryContext is not supported")

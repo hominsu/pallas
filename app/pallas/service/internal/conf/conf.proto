@@ -31,13 +31,13 @@ message Data {
     string addr = 2;
     string password = 3;
     int32 db = 4;
-    google.protobuf.Duration cache_expiration = 5;
-    google.protobuf.Duration read_timeout = 6;
-    google.protobuf.Duration write_timeout = 7;
+    google.protobuf.Duration read_timeout = 5;
+    google.protobuf.Duration write_timeout = 6;
   }
   message Cache {
     int64 lfu_size = 1;
     google.protobuf.Duration ttl = 2;
+    google.protobuf.Duration srp_ttl = 3;
   }
   Database database = 1;
   Redis redis = 2;
@@ -48,5 +48,9 @@ message Secret {
   message Session {
     string session_key = 1;
   }
+  message SRP {
+    int32 srp_params = 1;
+  }
   Session session = 1;
+  SRP srp = 2;
 }

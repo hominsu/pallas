@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/group"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/setting"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/user"
+	"github.com/hominsu/pallas/pkg/srp"
 	"github.com/hominsu/pallas/pkg/utils"
 )
 
@@ -19,7 +19,7 @@ type Default struct {
 	AdminsId map[int64]struct{}
 }
 
-func Migration(entClient *ent.Client, logger log.Logger) *Default {
+func Migration(entClient *ent.Client, params *srp.Params, logger log.Logger) *Default {
 	helper := log.NewHelper(log.With(logger, "module", "data/migration"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -27,7 +27,7 @@ func Migration(entClient *ent.Client, logger log.Logger) *Default {
 
 	if !checkMigration(ctx, entClient) {
 		createDefaultGroup(ctx, entClient)
-		createDefaultUser(ctx, entClient, helper)
+		createDefaultUser(ctx, entClient, params, helper)
 		setMigration(ctx, entClient)
 	}
 
@@ -105,21 +105,21 @@ func createDefaultGroup(ctx context.Context, client *ent.Client) {
 	client.Group.CreateBulk(bulk...).ExecX(ctx)
 }
 
-func createDefaultUser(ctx context.Context, client *ent.Client, helper *log.Helper) {
-	password := utils.RandString(20, utils.AllCharSet)
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 8)
-	if err != nil {
-		panic(err)
-	}
+func createDefaultUser(ctx context.Context, client *ent.Client, params *srp.Params, helper *log.Helper) {
+	salt := []byte(utils.RandString(20, utils.AllCharSet))
+	email := "admin@pallas.icu"
+	password := []byte(utils.RandString(20, utils.AllCharSet))
+	verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
 
 	res := client.Group.Query().
 		Where(group.NameEQ("Admin")).
 		OnlyX(ctx)
 
 	client.User.Create().
-		SetEmail("admin@pallas.icu").
+		SetEmail(email).
 		SetNickName("admin").
-		SetPasswordHash(hashedPassword).
+		SetSalt(salt).
+		SetVerifier(verifier).
 		SetStorage(1 * utils.GibiByte).
 		SetScore(0).
 		SetStatus(user.StatusActive).

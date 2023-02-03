@@ -8,6 +8,9 @@
 
 **/.DS_Store
 
+go.work
+go.work.sum
+
 /api/**/*.pb.go
 /api/**/*.validate.go
 

@@ -65,14 +65,14 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 	var (
 		err error
 		key string
-		res interface{}
+		res any
 	)
 	id := int(groupId)
 	switch groupView {
 	case biz.GroupViewViewUnspecified, biz.GroupViewBasic:
 		// key: group_cache_key_get_group_id:groupId
 		key = r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.Group{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -85,7 +85,7 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 	case biz.GroupViewWithEdgeIds:
 		// key: group_cache_key_get_group_id:groupId
 		key = r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id", "edge_ids")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.Group{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -111,7 +111,7 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 			Ctx:   ctx,
 			Key:   key,
 			Value: res.(*ent.Group),
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:   r.data.conf.Cache.Ttl.AsDuration(),
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
@@ -220,7 +220,7 @@ func (r *groupRepo) List(
 	var (
 		err error
 		key string
-		res interface{}
+		res any
 	)
 
 	switch groupView {
@@ -230,7 +230,7 @@ func (r *groupRepo) List(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
 			"list", "group",
 		)
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.Group
 			// get cache
 			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
@@ -246,7 +246,7 @@ func (r *groupRepo) List(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
 			"list", "group", "edge_ids",
 		)
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.Group
 			// get cache
 			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
@@ -270,7 +270,7 @@ func (r *groupRepo) List(
 			Ctx:            ctx,
 			Key:            key,
 			Value:          entList,
-			TTL:            r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:            r.data.conf.Cache.Ttl.AsDuration(),
 			SkipLocalCache: true,
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)

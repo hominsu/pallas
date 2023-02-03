@@ -17,6 +17,7 @@ import (
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/group"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/user"
 	"github.com/hominsu/pallas/pkg/pagination"
+	"github.com/hominsu/pallas/pkg/srp"
 )
 
 var _ biz.UserRepo = (*userRepo)(nil)
@@ -65,14 +66,14 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 	var (
 		err error
 		key string
-		res interface{}
+		res any
 	)
 	id := int(userId)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_get_user_id:userId
 		key = r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -85,7 +86,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_get_user_id_edge_ids:userId
 		key = r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id", "edge_ids")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -110,7 +111,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 			Ctx:   ctx,
 			Key:   key,
 			Value: res.(*ent.User),
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:   r.data.conf.Cache.Ttl.AsDuration(),
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
@@ -126,13 +127,13 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 	var (
 		err error
 		key string
-		res interface{}
+		res any
 	)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_get_user_email:userEmail
 		key = r.cacheKeyPrefix(email, "get", "user", "email")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -145,7 +146,7 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_get_user_email_edge_ids:userEmail
 		key = r.cacheKeyPrefix(email, "get", "user", "email", "edge_ids")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -170,7 +171,7 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 			Ctx:   ctx,
 			Key:   key,
 			Value: res.(*ent.User),
-			TTL:   r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:   r.data.conf.Cache.Ttl.AsDuration(),
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
@@ -186,7 +187,6 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	m := r.data.db.User.UpdateOneID(int(user.Id))
 	m.SetEmail(user.Email)
 	m.SetNickName(user.NickName)
-	m.SetPasswordHash([]byte(user.Password))
 	m.SetStorage(user.Storage)
 	m.SetScore(int(user.Score))
 	m.SetStatus(toEntUserStatus(user.Status))
@@ -296,7 +296,7 @@ func (r *userRepo) List(
 	var (
 		err error
 		key string
-		res interface{}
+		res any
 	)
 
 	switch userView {
@@ -306,7 +306,7 @@ func (r *userRepo) List(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
 			"list", "user",
 		)
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.User
 			// get cache
 			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
@@ -322,7 +322,7 @@ func (r *userRepo) List(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
 			"list", "user", "edge_ids",
 		)
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.User
 			// get cache
 			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
@@ -345,7 +345,7 @@ func (r *userRepo) List(
 			Ctx:            ctx,
 			Key:            key,
 			Value:          entList,
-			TTL:            r.data.conf.Redis.CacheExpiration.AsDuration(),
+			TTL:            r.data.conf.Cache.Ttl.AsDuration(),
 			SkipLocalCache: true,
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
@@ -410,7 +410,8 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 	m := r.data.db.User.Create()
 	m.SetEmail(user.Email)
 	m.SetNickName(user.NickName)
-	m.SetPasswordHash([]byte(user.Password))
+	m.SetSalt(user.Salt)
+	m.SetVerifier(user.Verifier)
 	m.SetStorage(user.Storage)
 	m.SetScore(int(user.Score))
 	m.SetStatus(toEntUserStatus(user.Status))
@@ -419,6 +420,30 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
 	}
 	return m, nil
+}
+
+func (r *userRepo) CacheSRPServer(ctx context.Context, email string, server *srp.Server) error {
+	err := r.data.cache.Set(&cache.Item{
+		Ctx:   ctx,
+		Key:   email,
+		Value: server,
+		TTL:   r.data.conf.Cache.SrpTtl.AsDuration(),
+	})
+	if err != nil {
+		r.log.Errorf("cache error: %v", err)
+		return v1.ErrorInternalError("cache srp error")
+	}
+	return nil
+}
+
+func (r *userRepo) GetSRPServer(ctx context.Context, email string) (*srp.Server, error) {
+	get := &srp.Server{}
+	// get cache
+	err := r.data.cache.Get(ctx, email, get)
+	if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
+		return nil, v1.ErrorSrpExpiration("srp cache expired")
+	}
+	return get, nil
 }
 
 func (r *userRepo) cacheKeyPrefix(unique string, a ...string) string {
@@ -463,7 +488,8 @@ func toUser(e *ent.User) (*biz.User, error) {
 	u.GroupId = int64(e.GroupID)
 	u.Email = e.Email
 	u.NickName = e.NickName
-	u.Password = string(e.PasswordHash)
+	u.Salt = e.Salt
+	u.Verifier = e.Verifier
 	u.Storage = e.Storage
 	u.Score = int64(e.Score)
 	u.Status = toUserStatus(e.Status)

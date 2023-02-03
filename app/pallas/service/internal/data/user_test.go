@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent"
+	"github.com/hominsu/pallas/pkg/srp"
 	"github.com/hominsu/pallas/pkg/utils"
 )
 
@@ -44,10 +45,15 @@ func newTestUserRepo(data *Data, logger log.Logger) *userRepo {
 func initData(c *conf.Data) (*userRepo, func(), error) {
 	logger := log.With(log.NewStdLogger(os.Stdout))
 
+	params, err := srp.GetParams(2048)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, logger)
+	d := Migration(entClient, params, logger)
 
 	ud, cleanup, err := NewData(entClient, redisCmd, redisCache, c, d, logger)
 	if err != nil {
@@ -91,13 +97,22 @@ func testCreateAndGet(t *testing.T, dbConf *conf.Data) {
 	}
 	defer cleanup()
 
-	var res *biz.User
+	params, err := srp.GetParams(2048)
+	assert.NoError(t, err)
+
 	name := utils.RandString(10, utils.UpperCharSet, utils.LowerCharSet)
 	email := name + "@pallas.icu"
+	salt := []byte(utils.RandString(20, utils.AllCharSet))
+	password := []byte(utils.RandString(20, utils.AllCharSet))
+	verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
+
+	var res *biz.User
+
 	res, err = tuRepo.Create(context.TODO(), &biz.User{
 		Email:    email,
 		NickName: name,
-		Password: utils.RandString(20, utils.AllCharSet),
+		Salt:     salt,
+		Verifier: verifier,
 		Storage:  utils.GibiByte,
 		Score:    0,
 		Status:   biz.StatusActive,
@@ -156,12 +171,21 @@ func testDelete(t *testing.T, dbConf *conf.Data) {
 	}
 	defer cleanup()
 
-	var res *biz.User
+	params, err := srp.GetParams(2048)
+	assert.NoError(t, err)
+
 	name := utils.RandString(10, utils.UpperCharSet, utils.LowerCharSet)
+	email := name + "@pallas.icu"
+	salt := []byte(utils.RandString(20, utils.AllCharSet))
+	password := []byte(utils.RandString(20, utils.AllCharSet))
+	verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
+
+	var res *biz.User
 	res, err = tuRepo.Create(context.TODO(), &biz.User{
-		Email:    name + "@pallas.icu",
+		Email:    email,
 		NickName: name,
-		Password: utils.RandString(20, utils.AllCharSet),
+		Salt:     salt,
+		Verifier: verifier,
 		Storage:  utils.GibiByte,
 		Score:    0,
 		Status:   biz.StatusActive,
@@ -196,18 +220,22 @@ func testCreateAndList(t *testing.T, dbConf *conf.Data) {
 	}
 	defer cleanup()
 
+	params, err := srp.GetParams(2048)
+	assert.NoError(t, err)
+
 	var testUsers []*biz.User
 	for i := 0; i < 100; i++ {
 		name := utils.RandString(10, utils.UpperCharSet, utils.LowerCharSet)
 		email := name + "@pallas.icu"
-		hashedPassword, _ := bcrypt.GenerateFromPassword(
-			[]byte(utils.RandString(20, utils.AllCharSet)),
-			10,
-		)
+		salt := []byte(utils.RandString(20, utils.AllCharSet))
+		password := []byte(utils.RandString(20, utils.AllCharSet))
+		verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
+
 		testUsers = append(testUsers, &biz.User{
 			Email:    email,
 			NickName: name,
-			Password: string(hashedPassword),
+			Salt:     salt,
+			Verifier: verifier,
 			Storage:  utils.GibiByte,
 			Score:    0,
 			Status:   biz.StatusActive,

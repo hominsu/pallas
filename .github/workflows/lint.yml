@@ -27,7 +27,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.resolve-modules.outputs.matrix) }}
     container:
-      image: golang:alpine
+      image: golang:1.18-alpine
       options: --user root
     steps:
       - name: Install dependencies
@@ -46,9 +46,15 @@ jobs:
           path: |
             ~/.cache/go-build
             /go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.work.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
+      - name: Workspace
+        run: |
+          go work init
+          go work use -r ./app
+          go mod tidy
 
       - name: Generate
         run: |
@@ -61,6 +67,6 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
+          version: v1.50.0
           working-directory: ${{ matrix.workdir }}
           skip-pkg-cache: true

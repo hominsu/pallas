@@ -10,7 +10,7 @@ import (
 
 func Info() middleware.Middleware {
 	return func(handler middleware.Handler) middleware.Handler {
-		return func(ctx context.Context, req interface{}) (interface{}, error) {
+		return func(ctx context.Context, req any) (any, error) {
 			if tr, ok := transport.FromServerContext(ctx); ok {
 				if ht, ok := tr.(*http.Transport); ok {
 					ctx = context.WithValue(ctx, ContextKeyRemoteAddr, ht.Request().RemoteAddr)
