@@ -66,14 +66,14 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 	var (
 		err error
 		key string
-		res interface{}
+		res any
 	)
 	id := int(userId)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_get_user_id:userId
 		key = r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -86,7 +86,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_get_user_id_edge_ids:userId
 		key = r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id", "edge_ids")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -127,13 +127,13 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 	var (
 		err error
 		key string
-		res interface{}
+		res any
 	)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_get_user_email:userEmail
 		key = r.cacheKeyPrefix(email, "get", "user", "email")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -146,7 +146,7 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_get_user_email_edge_ids:userEmail
 		key = r.cacheKeyPrefix(email, "get", "user", "email", "edge_ids")
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
 			er := r.data.cache.Get(ctx, key, get)
@@ -296,7 +296,7 @@ func (r *userRepo) List(
 	var (
 		err error
 		key string
-		res interface{}
+		res any
 	)
 
 	switch userView {
@@ -306,7 +306,7 @@ func (r *userRepo) List(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
 			"list", "user",
 		)
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.User
 			// get cache
 			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
@@ -322,7 +322,7 @@ func (r *userRepo) List(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
 			"list", "user", "edge_ids",
 		)
-		res, err, _ = r.sg.Do(key, func() (interface{}, error) {
+		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.User
 			// get cache
 			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)

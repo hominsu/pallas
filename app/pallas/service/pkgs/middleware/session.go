@@ -34,7 +34,7 @@ var ErrGetSessionStoreFail = errors.Unauthorized(unauthorized, "get session erro
 
 func Session(store *sessions.RedisStore, name string) middleware.Middleware {
 	return func(handler middleware.Handler) middleware.Handler {
-		return func(ctx context.Context, req interface{}) (reply interface{}, err error) {
+		return func(ctx context.Context, req any) (reply any, err error) {
 			if tr, ok := transport.FromServerContext(ctx); ok {
 				if ht, ok := tr.(*http.Transport); ok {
 					session, err := store.Get(ht, name)

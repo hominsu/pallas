@@ -62,7 +62,7 @@ func (r *settingRepo) Create(ctx context.Context, s *biz.Setting) (*biz.Setting,
 func (r *settingRepo) Get(ctx context.Context, id int64) (*biz.Setting, error) {
 	// key: setting_cache_key_get_setting_id:settingId
 	key := r.cacheKeyPrefix(strconv.FormatInt(id, 10), "get", "setting", "id")
-	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
+	res, err, _ := r.sg.Do(key, func() (any, error) {
 		get := &ent.Setting{}
 		// get cache
 		err := r.data.cache.Get(ctx, key, get)
@@ -93,7 +93,7 @@ func (r *settingRepo) Get(ctx context.Context, id int64) (*biz.Setting, error) {
 func (r *settingRepo) GetByName(ctx context.Context, name string) (*biz.Setting, error) {
 	// key: setting_cache_key_get_setting_id:settingId
 	key := r.cacheKeyPrefix(name, "get", "setting", "name")
-	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
+	res, err, _ := r.sg.Do(key, func() (any, error) {
 		get := &ent.Setting{}
 		// get cache
 		err := r.data.cache.Get(ctx, key, get)
@@ -195,7 +195,7 @@ func (r *settingRepo) Delete(ctx context.Context, id int64) error {
 func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
 	// key: setting_cache_key_list_group:all
 	key := r.cacheKeyPrefix("all", "list", "group")
-	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
+	res, err, _ := r.sg.Do(key, func() (any, error) {
 		var entList []*ent.Setting
 		// get cache
 		err := r.data.cache.Get(ctx, key, &entList)
@@ -232,7 +232,7 @@ func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
 func (r *settingRepo) ListByType(ctx context.Context, t biz.SettingType) ([]*biz.Setting, error) {
 	// key: setting_cache_key_list_group_type:settingType
 	key := r.cacheKeyPrefix(t.String(), "list", "group", "type")
-	res, err, _ := r.sg.Do(key, func() (interface{}, error) {
+	res, err, _ := r.sg.Do(key, func() (any, error) {
 		var entList []*ent.Setting
 		// get cache
 		err := r.data.cache.Get(ctx, key, &entList)
