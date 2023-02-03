@@ -65,6 +65,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - name: Workspace
+        run: |
+          go work init
+          go work use -r ./app
+          go mod tidy
+
       - name: Generate
         run: |
           make init
