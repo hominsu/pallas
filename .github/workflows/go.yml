@@ -79,7 +79,7 @@ jobs:
           make init
           make api
           make conf
-          make generate
+          make ent
           make wire
 
       - name: Build
