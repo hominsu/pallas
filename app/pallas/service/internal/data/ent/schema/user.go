@@ -1,13 +1,10 @@
 package schema
 
 import (
-	"entgo.io/contrib/entproto"
 	"entgo.io/ent"
-	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
-	"entgo.io/ent/schema/mixin"
 )
 
 // User holds the schema definition for the User entity.
@@ -15,61 +12,31 @@ type User struct {
 	ent.Schema
 }
 
-// Annotations of the User
-func (User) Annotations() []schema.Annotation {
-	return []schema.Annotation{
-		entproto.Message(),
-		entproto.Service(),
-	}
-}
-
 // Fields of the User.
 func (User) Fields() []ent.Field {
 	return []ent.Field{
-		field.Int("group_id").
-			Annotations(entproto.Field(2)),
+		field.Int("group_id"),
 		field.String("email").
-			Unique().
-			Annotations(entproto.Field(3)),
-		field.String("nick_name").
-			Annotations(entproto.Field(4)),
+			Unique(),
+		field.String("nick_name"),
 		field.Bytes("salt").
-			Sensitive().
-			Annotations(entproto.Field(5)),
+			Sensitive(),
 		field.Bytes("verifier").
-			Sensitive().
-			Annotations(entproto.Field(6)),
-		field.Uint64("storage").
-			Annotations(entproto.Field(7)),
+			Sensitive(),
+		field.Uint64("storage"),
 		field.Int("score").
-			Default(0).
-			Annotations(entproto.Field(8)),
+			Default(0),
 		field.Enum("status").
 			Values("non_activated", "active", "banned", "overuse_baned").
-			Default("non_activated").
-			Annotations(
-				entproto.Field(9),
-				entproto.Enum(map[string]int32{
-					"non_activated": 0,
-					"active":        1,
-					"banned":        2,
-					"overuse_baned": 3,
-				}),
-			),
+			Default("non_activated"),
 	}
 }
 
 // Mixin of the User.
 func (User) Mixin() []ent.Mixin {
 	return []ent.Mixin{
-		mixin.AnnotateFields(
-			CreateTimeMixin{},
-			entproto.Field(10),
-		),
-		mixin.AnnotateFields(
-			UpdateTimeMixin{},
-			entproto.Field(11),
-		),
+		CreateTimeMixin{},
+		UpdateTimeMixin{},
 	}
 }
 
@@ -81,8 +48,7 @@ func (User) Edges() []ent.Edge {
 			Unique().
 			// user cannot be created without its group
 			Required().
-			Field("group_id").
-			Annotations(entproto.Field(12)),
+			Field("group_id"),
 	}
 }
 

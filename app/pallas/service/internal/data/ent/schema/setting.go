@@ -1,11 +1,8 @@
 package schema
 
 import (
-	"entgo.io/contrib/entproto"
 	"entgo.io/ent"
-	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
-	"entgo.io/ent/schema/mixin"
 )
 
 // Setting holds the schema definition for the Setting entity.
@@ -13,22 +10,12 @@ type Setting struct {
 	ent.Schema
 }
 
-// Annotations of the Setting
-func (Setting) Annotations() []schema.Annotation {
-	return []schema.Annotation{
-		entproto.Message(),
-		entproto.Service(),
-	}
-}
-
 // Fields of the Setting.
 func (Setting) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name").
-			Unique().
-			Annotations(entproto.Field(2)),
-		field.String("value").
-			Annotations(entproto.Field(3)),
+			Unique(),
+		field.String("value"),
 		field.Enum("type").
 			Values(
 				"basic",
@@ -45,41 +32,15 @@ func (Setting) Fields() []ent.Field {
 				"score",
 				"task",
 				"auth",
-				"cron").
-			Annotations(
-				entproto.Field(4),
-				entproto.Enum(map[string]int32{
-					"basic":    1,
-					"register": 2,
-					"login":    3,
-					"mail":     4,
-					"captcha":  5,
-					"pwa":      6,
-					"timeout":  7,
-					"upload":   8,
-					"share":    9,
-					"avatar":   10,
-					"payment":  11,
-					"score":    12,
-					"task":     13,
-					"auth":     14,
-					"cron":     15,
-				}),
-			),
+				"cron"),
 	}
 }
 
 // Mixin of the Setting.
 func (Setting) Mixin() []ent.Mixin {
 	return []ent.Mixin{
-		mixin.AnnotateFields(
-			CreateTimeMixin{},
-			entproto.Field(5),
-		),
-		mixin.AnnotateFields(
-			UpdateTimeMixin{},
-			entproto.Field(6),
-		),
+		CreateTimeMixin{},
+		UpdateTimeMixin{},
 	}
 }
 

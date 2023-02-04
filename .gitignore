@@ -19,7 +19,6 @@ go.work.sum
 
 /app/**/internal/data/ent/*
 !/app/**/internal/data/ent/schema/
-!/app/**/internal/data/ent/external.go
 !/app/**/internal/data/ent/generate.go
 
 /deploy/development/mysql/mysql/
