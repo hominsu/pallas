@@ -41,7 +41,11 @@ jobs:
         run: |
           git config --global --add safe.directory "*"
 
-      - uses: actions/cache@v3
+      - name: Setup buf
+        uses: bufbuild/buf-setup-action@v1
+
+      - name: Setup cache
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cache/go-build
@@ -61,7 +65,7 @@ jobs:
           make init
           make api
           make conf
-          make generate
+          make ent
           make wire
 
       - name: Lint

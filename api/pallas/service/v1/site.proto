@@ -2,13 +2,14 @@ syntax = "proto3";
 
 package pallas.service.v1;
 
+import "gnostic/openapi/v3/annotations.proto";
 import "google/api/annotations.proto";
-import "google/gnostic/openapiv3/annotations.proto";
 import "google/protobuf/empty.proto";
 
 option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
+option java_multiple_files = true;
 
-option (openapi.v3.document) = {
+option (gnostic.openapi.v3.document) = {
   info: {
     title: "pallas";
     description: "docs for pallas apis";
@@ -27,7 +28,7 @@ service SiteService {
       get: "/v1/site/ping",
     };
 
-    option (openapi.v3.operation) = {
+    option (gnostic.openapi.v3.operation) = {
       description: "return the version of backend";
     };
   };

@@ -4,10 +4,11 @@ package pallas.service.v1;
 
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
-import "v1/base.proto";
+import "pallas/service/v1/base.proto";
 import "validate/validate.proto";
 
 option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
+option java_multiple_files = true;
 
 service AdminService {
   rpc ListUsers (ListUsersRequest) returns (ListUsersReply) {
