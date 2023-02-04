@@ -2,13 +2,14 @@ syntax = "proto3";
 
 package pallas.service.v1;
 
+import "gnostic/openapi/v3/annotations.proto";
 import "google/api/annotations.proto";
-import "google/gnostic/openapiv3/annotations.proto";
 import "google/protobuf/empty.proto";
-import "v1/base.proto";
+import "pallas/service/v1/base.proto";
 import "validate/validate.proto";
 
 option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
+option java_multiple_files = true;
 
 service UserService {
   rpc Signup (SignupRequest) returns (google.protobuf.Empty) {
@@ -17,7 +18,7 @@ service UserService {
       body: "*",
     };
 
-    option (openapi.v3.operation) = {
+    option (gnostic.openapi.v3.operation) = {
       description: "signup";
     };
   };
@@ -27,7 +28,7 @@ service UserService {
       get: "/v1/signin/s",
     };
 
-    option (openapi.v3.operation) = {
+    option (gnostic.openapi.v3.operation) = {
       description: "request salt by identify(email)";
     };
   };
@@ -38,7 +39,7 @@ service UserService {
       body: "*",
     };
 
-    option (openapi.v3.operation) = {
+    option (gnostic.openapi.v3.operation) = {
       description: "send A to server and get B";
     };
   };
@@ -49,7 +50,7 @@ service UserService {
       body: "*",
     };
 
-    option (openapi.v3.operation) = {
+    option (gnostic.openapi.v3.operation) = {
       description: "send M1 to server";
     };
   };
@@ -59,7 +60,7 @@ service UserService {
       delete: "/v1/sign-out",
     };
 
-    option (openapi.v3.operation) = {
+    option (gnostic.openapi.v3.operation) = {
       description: "sign-out";
     };
   };

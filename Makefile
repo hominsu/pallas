@@ -1,52 +1,89 @@
-.PHONY: init
+SRC_MAKEFILES := $(foreach dir, app, $(wildcard $(dir)/*/*/Makefile))
+
+.PHONY: init dep api conf ent wire openapi build clean run test
+
 # init env
 init:
-	go install entgo.io/contrib/entproto/cmd/protoc-gen-entgrpc@latest
 	go install entgo.io/ent/cmd/ent@latest
-	go install github.com/envoyproxy/protoc-gen-validate@latest
 	go install github.com/google/gnostic/cmd/protoc-gen-openapi@latest
 	go install github.com/google/wire/cmd/wire@latest
 	go install github.com/go-kratos/kratos/cmd/protoc-gen-go-errors/v2@latest
 	go install github.com/go-kratos/kratos/cmd/protoc-gen-go-http/v2@latest
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
-.PHONY: api
-# generate api
+# download dependencies of module
+dep:
+	$(foreach dir, $(dir $(realpath $(SRC_MAKEFILES))),\
+      cd $(dir);\
+      make dep;\
+    )
+
+# generate protobuf api go code
 api:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) api'
+	cd $(lastword $(dir $(realpath $(SRC_MAKEFILES))));\
+	make api;
 
-.PHONY: conf
-# generate proto
+# generate config define code
 conf:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) conf'
+	$(foreach dir, $(dir $(realpath $(SRC_MAKEFILES))),\
+      cd $(dir);\
+      make conf;\
+    )
 
-.PHONY: generate
-# generate generate
-generate:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) generate'
+# generate ent code
+ent:
+	$(foreach dir, $(dir $(realpath $(SRC_MAKEFILES))),\
+      cd $(dir);\
+      make ent;\
+    )
 
-.PHONY: wire
-# generate wire
+# generate wire code
 wire:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) wire'
+	$(foreach dir, $(dir $(realpath $(SRC_MAKEFILES))),\
+      cd $(dir);\
+      make wire;\
+    )
 
-.PHONY: build
-# generate build
+# generate OpenAPI v3 docs.
+openapi:
+	cd $(lastword $(dir $(realpath $(SRC_MAKEFILES))));\
+	make openapi;
+
+# build all service applications
 build:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) build'
+	$(foreach dir, $(dir $(realpath $(SRC_MAKEFILES))),\
+      cd $(dir);\
+      make build;\
+    )
 
-.PHONY: test
-# generate test
+# clean build files
+clean:
+	$(foreach dir, $(dir $(realpath $(SRC_MAKEFILES))),\
+	  cd $(dir);\
+	  make clean;\
+	)
+
+# run tests
 test:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) test'
+	$(foreach dir, $(dir $(realpath $(SRC_MAKEFILES))),\
+	  cd $(dir);\
+	  make test;\
+	)
 
-.PHONY: docker
-# generate docker
-docker:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) docker'
+# show help
+help:
+	@echo ''
+	@echo 'Usage:'
+	@echo ' make [target]'
+	@echo ''
+	@echo 'Targets:'
+	@awk '/^[a-zA-Z\-\_0-9]+:/ { \
+	helpMessage = match(lastLine, /^# (.*)/); \
+		if (helpMessage) { \
+			helpCommand = substr($$1, 0, index($$1, ":")-1); \
+			helpMessage = substr(lastLine, RSTART + 2, RLENGTH); \
+			printf "\033[36m%-22s\033[0m %s\n", helpCommand,helpMessage; \
+		} \
+	} \
+	{ lastLine = $$0 }' $(MAKEFILE_LIST)
 
-.PHONY: buildx
-# generate buildx
-buildx:
-	find app -mindepth 2 -maxdepth 2 -type d -print | xargs -n 1 bash -c 'cd "$$0" && pwd && $(MAKE) buildx'
+.DEFAULT_GOAL := help
