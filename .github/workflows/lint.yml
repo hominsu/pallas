@@ -43,6 +43,8 @@ jobs:
 
       - name: Setup buf
         uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ github.token }}
 
       - name: Setup cache
         uses: actions/cache@v3
