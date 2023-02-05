@@ -2,14 +2,18 @@ package data
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 
+	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/group"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/setting"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/user"
+	"github.com/hominsu/pallas/app/pallas/service/internal/data/settings"
 	"github.com/hominsu/pallas/pkg/srp"
 	"github.com/hominsu/pallas/pkg/utils"
 )
@@ -26,14 +30,22 @@ func Migration(entClient *ent.Client, params *srp.Params, logger log.Logger) *De
 	defer cancel()
 
 	if !checkMigration(ctx, entClient) {
-		createDefaultGroup(ctx, entClient)
+		// create default group: Admin, User and Anonymous
+		createDefaultGroup(ctx, entClient, helper)
+
+		// create default user admin@pallas.icu
 		createDefaultUser(ctx, entClient, params, helper)
+
+		// create default settings
+		createDefaultSettings(ctx, entClient, helper)
+
+		// set migration status
 		setMigration(ctx, entClient)
 	}
 
 	d := &Default{}
-	getDefaultGroup(ctx, entClient, d)
-	getAdminUsers(ctx, entClient, d)
+	getDefaultGroup(ctx, entClient, d, helper)
+	getAdminUsers(ctx, entClient, d, helper)
 	return d
 }
 
@@ -53,10 +65,14 @@ func setMigration(ctx context.Context, client *ent.Client) {
 		ExecX(ctx)
 }
 
-func getDefaultGroup(ctx context.Context, client *ent.Client, d *Default) {
-	res := client.Group.Query().
+func getDefaultGroup(ctx context.Context, client *ent.Client, d *Default, helper *log.Helper) {
+	res, err := client.Group.Query().
 		Where(group.NameIn("Admin", "User", "Anonymous")).
-		AllX(ctx)
+		All(ctx)
+	if err != nil {
+		helper.Fatalf("failed getting default groups")
+	}
+
 	groupList, err := toGroupList(res)
 	if err != nil {
 		panic(err)
@@ -68,10 +84,14 @@ func getDefaultGroup(ctx context.Context, client *ent.Client, d *Default) {
 	}
 }
 
-func getAdminUsers(ctx context.Context, client *ent.Client, d *Default) {
-	res := client.User.Query().WithOwnerGroup(func(query *ent.GroupQuery) {
+func getAdminUsers(ctx context.Context, client *ent.Client, d *Default, helper *log.Helper) {
+	res, err := client.User.Query().WithOwnerGroup(func(query *ent.GroupQuery) {
 		query.Where(group.NameEQ("Admin"))
-	}).AllX(ctx)
+	}).All(ctx)
+	if err != nil {
+		helper.Fatalf("failed getting admin users")
+	}
+
 	adminList, err := toUserList(res)
 	if err != nil {
 		panic(err)
@@ -83,7 +103,7 @@ func getAdminUsers(ctx context.Context, client *ent.Client, d *Default) {
 	}
 }
 
-func createDefaultGroup(ctx context.Context, client *ent.Client) {
+func createDefaultGroup(ctx context.Context, client *ent.Client, helper *log.Helper) {
 	var bulk []*ent.GroupCreate
 	bulk = append(bulk,
 		client.Group.Create().
@@ -102,7 +122,11 @@ func createDefaultGroup(ctx context.Context, client *ent.Client) {
 			SetShareEnabled(true).
 			SetSpeedLimit(0),
 	)
-	client.Group.CreateBulk(bulk...).ExecX(ctx)
+
+	err := client.Group.CreateBulk(bulk...).Exec(ctx)
+	if err != nil {
+		helper.Fatalf("failed creating default groups")
+	}
 }
 
 func createDefaultUser(ctx context.Context, client *ent.Client, params *srp.Params, helper *log.Helper) {
@@ -115,7 +139,7 @@ func createDefaultUser(ctx context.Context, client *ent.Client, params *srp.Para
 		Where(group.NameEQ("Admin")).
 		OnlyX(ctx)
 
-	client.User.Create().
+	err := client.User.Create().
 		SetEmail(email).
 		SetNickName("admin").
 		SetSalt(salt).
@@ -124,7 +148,30 @@ func createDefaultUser(ctx context.Context, client *ent.Client, params *srp.Para
 		SetScore(0).
 		SetStatus(user.StatusActive).
 		SetOwnerGroup(res).
-		ExecX(ctx)
+		Exec(ctx)
+	if err != nil {
+		helper.Fatalf("failed creating default user")
+	}
 
 	helper.Infof("========= default user: %s, password: %s ==========", "admin@pallas.icu", password)
+}
+
+func createDefaultSettings(ctx context.Context, client *ent.Client, helper *log.Helper) {
+	s := settings.DefaultSettings()
+
+	var bulk []*ent.SettingCreate
+	typ := reflect.TypeOf(s).Elem()
+	val := reflect.ValueOf(s).Elem()
+	for i := 0; i < typ.NumField(); i++ {
+		bulk = append(bulk, client.Setting.Create().
+			SetName(typ.Field(i).Name).
+			SetValue(fmt.Sprintf("%v", val.Field(i).Interface())).
+			SetType(toEntSettingType(biz.SettingTypeValue[typ.Field(i).Tag.Get("type")])),
+		)
+	}
+
+	err := client.Setting.CreateBulk(bulk...).Exec(ctx)
+	if err != nil {
+		helper.Fatalf("failed creating default settings")
+	}
 }
