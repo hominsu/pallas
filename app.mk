@@ -1,6 +1,6 @@
-GOPATH:=$(shell go env GOPATH)
-APP_VERSION=$(shell git describe --tags --always)
-APP_RELATIVE_PATH=$(shell a=`basename $$PWD` && cd .. && b=`basename $$PWD` && echo $$b/$$a)
+GOPATH				:=	$(shell go env GOPATH)
+APP_VERSION			:=	$(shell git describe --tags --always)
+APP_RELATIVE_PATH	:=	$(shell a=`basename $$PWD` && cd .. && b=`basename $$PWD` && echo $$b/$$a)
 
 .PHONY: dep api conf ent wire openapi build clean run test
 
@@ -19,15 +19,15 @@ conf:
 
 # generate ent code
 ent:
-ifneq ("$(wildcard ./internal/data/ent)","")
-	@go run entgo.io/ent/cmd/ent generate \
+	@if [ "$(wildcard ./internal/data/ent)" != "" ]; then \
+  		go run entgo.io/ent/cmd/ent generate \
 				--feature privacy \
 				--feature entql \
 				--feature sql/modifier \
 				--feature sql/execquery \
 				--feature sql/upsert \
-				./internal/data/ent/schema
-endif
+				./internal/data/ent/schema; \
+	fi
 
 # generate wire code
 wire:
@@ -40,9 +40,7 @@ openapi:
 
 # build golang application
 build:
-ifeq ("$(wildcard ./bin/)","")
-	mkdir bin
-endif
+	@if [ "$(wildcard ./bin/)" = "" ]; then mkdir bin; fi
 	@go build -ldflags "-X main.Version=$(VERSION)" -o ./bin/ ./...
 
 # clean build files
