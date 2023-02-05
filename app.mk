@@ -19,7 +19,7 @@ conf:
 
 # generate ent code
 ent:
-	@if [ "$(wildcard ./internal/data/ent)" != "" ]; then \
+	@if [ -d "./internal/data/ent" ]; then \
   		go run entgo.io/ent/cmd/ent generate \
 				--feature privacy \
 				--feature entql \
@@ -40,7 +40,7 @@ openapi:
 
 # build golang application
 build:
-	@if [ "$(wildcard ./bin/)" = "" ]; then mkdir bin; fi
+	@if [ ! -d "./bin/" ]; then mkdir bin; fi
 	@go build -ldflags "-X main.Version=$(VERSION)" -o ./bin/ ./...
 
 # clean build files
