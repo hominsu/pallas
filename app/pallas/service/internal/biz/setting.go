@@ -29,6 +29,24 @@ const (
 	TypeCron     SettingType = "cron"
 )
 
+var SettingTypeValue = map[string]SettingType{
+	"basic":    TypeBasic,
+	"register": TypeRegister,
+	"login":    TypeLogin,
+	"mail":     TypeMail,
+	"captcha":  TypeCaptcha,
+	"pwa":      TypePwa,
+	"timeout":  TypeTimeout,
+	"upload":   TypeUpload,
+	"share":    TypeShare,
+	"avatar":   TypeAvatar,
+	"payment":  TypePayment,
+	"score":    TypeScore,
+	"task":     TypeTask,
+	"auth":     TypeAuth,
+	"cron":     TypeCron,
+}
+
 func (s SettingType) String() string {
 	return string(s)
 }
