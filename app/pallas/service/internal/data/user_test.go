@@ -107,7 +107,7 @@ func testCreateAndGet(t *testing.T, dbConf *conf.Data) {
 	password := []byte(utils.RandString(20, utils.AllCharSet))
 	verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
 
-	group, err := tuRepo.data.db.Group.Query().Where(group.NameEQ("Anonymous")).Only(context.TODO())
+	g, err := tuRepo.data.db.Group.Query().Where(group.NameEQ("Anonymous")).Only(context.TODO())
 	assert.NoError(t, err)
 
 	var res *biz.User
@@ -119,7 +119,7 @@ func testCreateAndGet(t *testing.T, dbConf *conf.Data) {
 		Storage:    utils.GibiByte,
 		Score:      0,
 		Status:     biz.StatusActive,
-		OwnerGroup: &biz.Group{Id: int64(group.ID)},
+		OwnerGroup: &biz.Group{Id: int64(g.ID)},
 	})
 	if err != nil {
 		t.Fatalf("create test user error: %v", err)
@@ -184,7 +184,7 @@ func testDelete(t *testing.T, dbConf *conf.Data) {
 	password := []byte(utils.RandString(20, utils.AllCharSet))
 	verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
 
-	group, err := tuRepo.data.db.Group.Query().Where(group.NameEQ("Anonymous")).Only(context.TODO())
+	g, err := tuRepo.data.db.Group.Query().Where(group.NameEQ("Anonymous")).Only(context.TODO())
 	assert.NoError(t, err)
 
 	var res *biz.User
@@ -196,7 +196,7 @@ func testDelete(t *testing.T, dbConf *conf.Data) {
 		Storage:    utils.GibiByte,
 		Score:      0,
 		Status:     biz.StatusActive,
-		OwnerGroup: &biz.Group{Id: int64(group.ID)},
+		OwnerGroup: &biz.Group{Id: int64(g.ID)},
 	})
 	if err != nil {
 		t.Fatalf("create test user error: %v", err)
@@ -239,8 +239,8 @@ func testCreateAndList(t *testing.T, dbConf *conf.Data) {
 		password := []byte(utils.RandString(20, utils.AllCharSet))
 		verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
 
-		group, err := tuRepo.data.db.Group.Query().Where(group.NameEQ("Anonymous")).Only(context.TODO())
-		assert.NoError(t, err)
+		g, er := tuRepo.data.db.Group.Query().Where(group.NameEQ("Anonymous")).Only(context.TODO())
+		assert.NoError(t, er)
 
 		testUsers = append(testUsers, &biz.User{
 			Email:      email,
@@ -250,7 +250,7 @@ func testCreateAndList(t *testing.T, dbConf *conf.Data) {
 			Storage:    utils.GibiByte,
 			Score:      0,
 			Status:     biz.StatusActive,
-			OwnerGroup: &biz.Group{Id: int64(group.ID)},
+			OwnerGroup: &biz.Group{Id: int64(g.ID)},
 		})
 	}
 
