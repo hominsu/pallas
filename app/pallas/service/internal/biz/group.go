@@ -46,8 +46,7 @@ type GroupRepo interface {
 
 type GroupUsecase struct {
 	repo GroupRepo
-
-	log *log.Helper
+	log  *log.Helper
 }
 
 func NewGroupUsecase(repo GroupRepo, logger log.Logger) *GroupUsecase {

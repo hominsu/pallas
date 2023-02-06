@@ -15,6 +15,7 @@ import (
 	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/setting"
+	"github.com/hominsu/pallas/app/pallas/service/internal/data/settings"
 )
 
 var _ biz.SettingRepo = (*settingRepo)(nil)
@@ -127,7 +128,7 @@ func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting,
 	m := r.data.db.Setting.UpdateOneID(int(s.Id))
 	m.SetName(s.Name)
 	m.SetValue(s.Value)
-	m.SetType(toEntSettingType(s.Type))
+	m.SetType(settings.ToEntSettingType(s.Type))
 	res, err := m.Save(ctx)
 	if err != nil {
 		return nil, err
@@ -229,7 +230,7 @@ func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
 	}
 }
 
-func (r *settingRepo) ListByType(ctx context.Context, t biz.SettingType) ([]*biz.Setting, error) {
+func (r *settingRepo) ListByType(ctx context.Context, t settings.SettingType) ([]*biz.Setting, error) {
 	// key: setting_cache_key_list_group_type:settingType
 	key := r.cacheKeyPrefix(t.String(), "list", "group", "type")
 	res, err, _ := r.sg.Do(key, func() (any, error) {
@@ -239,7 +240,7 @@ func (r *settingRepo) ListByType(ctx context.Context, t biz.SettingType) ([]*biz
 		if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
 			// get from db
 			entList, err = r.data.db.Setting.Query().
-				Where(setting.TypeEQ(toEntSettingType(t))).
+				Where(setting.TypeEQ(settings.ToEntSettingType(t))).
 				All(ctx)
 		}
 		return entList, err
@@ -301,7 +302,7 @@ func (r *settingRepo) createBuilder(setting *biz.Setting) (*ent.SettingCreate, e
 	m := r.data.db.Setting.Create()
 	m.SetName(setting.Name)
 	m.SetValue(setting.Value)
-	m.SetType(toEntSettingType(setting.Type))
+	m.SetType(settings.ToEntSettingType(setting.Type))
 	return m, nil
 }
 
@@ -320,16 +321,12 @@ func (r *settingRepo) deleteCache(ctx context.Context, key ...string) error {
 	return nil
 }
 
-func toSettingType(e setting.Type) biz.SettingType { return biz.SettingType(e) }
-
-func toEntSettingType(s biz.SettingType) setting.Type { return setting.Type(s) }
-
 func toSetting(e *ent.Setting) (*biz.Setting, error) {
 	s := &biz.Setting{}
 	s.Id = int64(e.ID)
 	s.Name = e.Name
 	s.Value = e.Value
-	s.Type = toSettingType(e.Type)
+	s.Type = settings.ToSettingType(e.Type)
 	return s, nil
 }
 

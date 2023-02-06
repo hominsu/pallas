@@ -40,7 +40,6 @@ type Data struct {
 	cache *cache.Cache
 
 	conf *conf.Data
-	d    *Default
 }
 
 // NewData .
@@ -49,7 +48,7 @@ func NewData(
 	rdCmd redis.Cmdable,
 	cache *cache.Cache,
 	conf *conf.Data,
-	d *Default,
+	_ *MigrationStatus,
 	logger log.Logger,
 ) (*Data, func(), error) {
 	// NewData
@@ -60,7 +59,6 @@ func NewData(
 		rdCmd: rdCmd,
 		cache: cache,
 		conf:  conf,
-		d:     d,
 	}
 	return data, func() {
 		if err := data.db.Close(); err != nil {

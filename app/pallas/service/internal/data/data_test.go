@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
+	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/group"
 	"github.com/hominsu/pallas/pkg/srp"
 )
 
@@ -42,32 +43,55 @@ var (
 		Ttl:     durationpb.New(time.Minute * 1),
 	}
 
-	dd *Data
+	d *Data
 )
 
 func FlushAll(t *testing.T) {
-	if err := dd.rdCmd.FlushDB(context.TODO()).Err(); err != nil {
+	if err := d.rdCmd.FlushDB(context.TODO()).Err(); err != nil {
 		t.Errorf("flush redis error: %v", err)
 	}
 
-	if _, err := dd.db.User.Delete().Exec(context.TODO()); err != nil {
+	if _, err := d.db.User.Delete().Exec(context.TODO()); err != nil {
 		t.Errorf("flush user table error: %v", err)
 	}
 
-	if _, err := dd.db.Group.Delete().Exec(context.TODO()); err != nil {
+	if _, err := d.db.Group.Delete().Exec(context.TODO()); err != nil {
 		t.Errorf("flush user table error: %v", err)
 	}
 
-	if _, err := dd.db.Setting.Delete().Exec(context.TODO()); err != nil {
+	if _, err := d.db.Setting.Delete().Exec(context.TODO()); err != nil {
 		t.Errorf("flush setting table error: %v", err)
 	}
 }
 
 func CheckDefault(t *testing.T) {
-	for k := range dd.d.GroupsId {
-		if k != "Admin" && k != "User" && k != "Anonymous" {
-			t.Fatalf("expected default group: %s", k)
-		}
+	tests := []struct {
+		name      string
+		assertion assert.BoolAssertionFunc
+	}{
+		{
+			name:      "Admin",
+			assertion: assert.True,
+		},
+		{
+			name:      "User",
+			assertion: assert.True,
+		},
+		{
+			name:      "Anonymous",
+			assertion: assert.True,
+		},
+		{
+			name:      "Error",
+			assertion: assert.False,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ok, err := d.db.Group.Query().Where(group.NameEQ(tt.name)).Exist(context.TODO())
+			assert.NoError(t, err)
+			tt.assertion(t, ok)
+		})
 	}
 }
 
@@ -95,9 +119,9 @@ func TestMySQL(t *testing.T) {
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, params, logger)
+	Migration(entClient, params, logger)
 
-	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
+	d, cleanup, err = NewData(entClient, redisCmd, redisCache, c, &MigrationStatus{}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,9 +149,9 @@ func TestPostgres(t *testing.T) {
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, params, logger)
+	Migration(entClient, params, logger)
 
-	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
+	d, cleanup, err = NewData(entClient, redisCmd, redisCache, c, &MigrationStatus{}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,9 +179,9 @@ func TestSQLite3(t *testing.T) {
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, params, logger)
+	Migration(entClient, params, logger)
 
-	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
+	d, cleanup, err = NewData(entClient, redisCmd, redisCache, c, &MigrationStatus{}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
