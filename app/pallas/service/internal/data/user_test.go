@@ -55,7 +55,7 @@ func initData(c *conf.Data) (*userRepo, func(), error) {
 	redisCache := NewRedisCache(redisCmd, c)
 	Migration(entClient, params, logger)
 
-	ud, cleanup, err := NewData(entClient, redisCmd, redisCache, c, logger)
+	ud, cleanup, err := NewData(entClient, redisCmd, redisCache, c, &MigrationStatus{}, logger)
 	if err != nil {
 		return nil, nil, err
 	}
