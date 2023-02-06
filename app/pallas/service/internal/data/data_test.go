@@ -18,12 +18,12 @@ import (
 var (
 	MySQLConf = &conf.Data_Database{
 		Driver: "mysql",
-		Source: "root:dangerous@tcp(mysql:3306)/pallas?charset=utf8mb4&parseTime=True&loc=Local",
+		Source: "root:dangerous@tcp(127.0.0.1:3306)/pallas?charset=utf8mb4&parseTime=True&loc=Local",
 	}
 
 	PostgreSQLConf = &conf.Data_Database{
 		Driver: "postgres",
-		Source: "host=postgres port=5432 user=postgres dbname=pallas password=dangerous sslmode=disable",
+		Source: "host=127.0.0.1 port=5432 user=postgres dbname=pallas password=dangerous sslmode=disable",
 	}
 
 	SQLite3Conf = &conf.Data_Database{
@@ -32,7 +32,7 @@ var (
 	}
 
 	RedisConf = &conf.Data_Redis{
-		Addr:         "redis:6379",
+		Addr:         "127.0.0.1:6379",
 		Db:           1,
 		ReadTimeout:  durationpb.New(time.Millisecond * 200),
 		WriteTimeout: durationpb.New(time.Millisecond * 200),
@@ -83,7 +83,7 @@ func CheckDefault(t *testing.T) {
 		},
 		{
 			name:      "Error",
-			assertion: assert.True,
+			assertion: assert.False,
 		},
 	}
 	for _, tt := range tests {

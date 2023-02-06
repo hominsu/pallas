@@ -12,6 +12,7 @@ import (
 	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent"
+	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/group"
 	"github.com/hominsu/pallas/pkg/srp"
 	"github.com/hominsu/pallas/pkg/utils"
 )
@@ -106,16 +107,19 @@ func testCreateAndGet(t *testing.T, dbConf *conf.Data) {
 	password := []byte(utils.RandString(20, utils.AllCharSet))
 	verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
 
-	var res *biz.User
+	group, err := tuRepo.data.db.Group.Query().Where(group.NameEQ("Anonymous")).Only(context.TODO())
+	assert.NoError(t, err)
 
+	var res *biz.User
 	res, err = tuRepo.Create(context.TODO(), &biz.User{
-		Email:    email,
-		NickName: name,
-		Salt:     salt,
-		Verifier: verifier,
-		Storage:  utils.GibiByte,
-		Score:    0,
-		Status:   biz.StatusActive,
+		Email:      email,
+		NickName:   name,
+		Salt:       salt,
+		Verifier:   verifier,
+		Storage:    utils.GibiByte,
+		Score:      0,
+		Status:     biz.StatusActive,
+		OwnerGroup: &biz.Group{Id: int64(group.ID)},
 	})
 	if err != nil {
 		t.Fatalf("create test user error: %v", err)
@@ -180,15 +184,19 @@ func testDelete(t *testing.T, dbConf *conf.Data) {
 	password := []byte(utils.RandString(20, utils.AllCharSet))
 	verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
 
+	group, err := tuRepo.data.db.Group.Query().Where(group.NameEQ("Anonymous")).Only(context.TODO())
+	assert.NoError(t, err)
+
 	var res *biz.User
 	res, err = tuRepo.Create(context.TODO(), &biz.User{
-		Email:    email,
-		NickName: name,
-		Salt:     salt,
-		Verifier: verifier,
-		Storage:  utils.GibiByte,
-		Score:    0,
-		Status:   biz.StatusActive,
+		Email:      email,
+		NickName:   name,
+		Salt:       salt,
+		Verifier:   verifier,
+		Storage:    utils.GibiByte,
+		Score:      0,
+		Status:     biz.StatusActive,
+		OwnerGroup: &biz.Group{Id: int64(group.ID)},
 	})
 	if err != nil {
 		t.Fatalf("create test user error: %v", err)
@@ -231,14 +239,18 @@ func testCreateAndList(t *testing.T, dbConf *conf.Data) {
 		password := []byte(utils.RandString(20, utils.AllCharSet))
 		verifier := srp.ComputeVerifier(params, salt, []byte(email), password)
 
+		group, err := tuRepo.data.db.Group.Query().Where(group.NameEQ("Anonymous")).Only(context.TODO())
+		assert.NoError(t, err)
+
 		testUsers = append(testUsers, &biz.User{
-			Email:    email,
-			NickName: name,
-			Salt:     salt,
-			Verifier: verifier,
-			Storage:  utils.GibiByte,
-			Score:    0,
-			Status:   biz.StatusActive,
+			Email:      email,
+			NickName:   name,
+			Salt:       salt,
+			Verifier:   verifier,
+			Storage:    utils.GibiByte,
+			Score:      0,
+			Status:     biz.StatusActive,
+			OwnerGroup: &biz.Group{Id: int64(group.ID)},
 		})
 	}
 
