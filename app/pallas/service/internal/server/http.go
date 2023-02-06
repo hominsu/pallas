@@ -13,8 +13,8 @@ import (
 	"github.com/gorilla/handlers"
 
 	v1 "github.com/hominsu/pallas/api/pallas/service/v1"
+	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
 	"github.com/hominsu/pallas/app/pallas/service/internal/conf"
-	"github.com/hominsu/pallas/app/pallas/service/internal/data"
 	"github.com/hominsu/pallas/app/pallas/service/internal/service"
 	"github.com/hominsu/pallas/app/pallas/service/pkgs/middleware"
 	"github.com/hominsu/pallas/pkg/sessions"
@@ -42,10 +42,10 @@ func NewAdminMatcher() selector.MatchFunc {
 
 func NewHTTPServer(
 	c *conf.Server,
-	d *data.Default,
 	ss *service.SiteService,
 	us *service.UserService,
 	as *service.AdminService,
+	uu *biz.UserUsecase,
 	store *sessions.RedisStore,
 	logger log.Logger,
 ) *http.Server {
@@ -57,12 +57,12 @@ func NewHTTPServer(
 			validate.Validator(),
 			middleware.Info(),
 			selector.Server(
-				middleware.Session(store, "pallas-session"),
+				middleware.Session(store, "pallas-session", logger),
 			).
 				Match(NewSkipSessionMatcher()).
 				Build(),
 			selector.Server(
-				middleware.Admin(d),
+				middleware.Admin(uu, logger),
 			).
 				Match(NewAdminMatcher()).
 				Build(),

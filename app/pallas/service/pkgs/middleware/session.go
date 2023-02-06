@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-kratos/kratos/v2/errors"
+	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware"
 	"github.com/go-kratos/kratos/v2/transport"
 	"github.com/go-kratos/kratos/v2/transport/http"
@@ -19,7 +20,7 @@ type ContextKey string
 
 const (
 	ContextKeyUserId     ContextKey = "userid"
-	ContextKeyUserK      ContextKey = "user-k"
+	ContextKeyUserK      ContextKey = "user-srp-k"
 	ContextKeyRemoteAddr ContextKey = "remote-addr"
 )
 
@@ -27,14 +28,14 @@ type SessionKey string
 
 const (
 	SessionKeyUserId SessionKey = "userid"
-	SessionKeyUserK  SessionKey = "user-k"
+	SessionKeyUserK  SessionKey = "user-srp-k"
 )
 
 var ErrGetSessionStoreFail = errors.Unauthorized(unauthorized, "get session error")
 
-func Session(store *sessions.RedisStore, name string) middleware.Middleware {
+func Session(store *sessions.RedisStore, name string, _ log.Logger) middleware.Middleware {
 	return func(handler middleware.Handler) middleware.Handler {
-		return func(ctx context.Context, req any) (reply any, err error) {
+		return func(ctx context.Context, req any) (any, error) {
 			if tr, ok := transport.FromServerContext(ctx); ok {
 				if ht, ok := tr.(*http.Transport); ok {
 					session, err := store.Get(ht, name)

@@ -415,11 +415,42 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 	m.SetStorage(user.Storage)
 	m.SetScore(int(user.Score))
 	m.SetStatus(toEntUserStatus(user.Status))
-	m.SetOwnerGroupID(int(r.data.d.GroupsId["User"]))
 	if user.OwnerGroup != nil {
 		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
 	}
 	return m, nil
+}
+
+func (r *userRepo) IsAdminUser(ctx context.Context, userId int64) (bool, error) {
+	// key: user_cache_key_get_user_id_edge_ids:userId
+	key := r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "is", "admin", "user", "id")
+	var res bool
+	// get cache
+	err := r.data.cache.Get(ctx, key, res)
+	if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
+		// get from db
+		res, err = r.data.db.User.Query().
+			Where(user.ID(int(userId))).
+			WithOwnerGroup(func(query *ent.GroupQuery) {
+				query.Where(group.NameEQ("Admin"))
+			}).
+			Exist(ctx)
+	}
+
+	switch {
+	case err == nil: // db hit, set cache
+		if err = r.data.cache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   key,
+			Value: res,
+			TTL:   r.data.conf.Cache.Ttl.AsDuration(),
+		}); err != nil {
+			r.log.Errorf("cache error: %v", err)
+		}
+		return res, nil
+	default: // error
+		return false, v1.ErrorUnknownError("unknown error: %s", err)
+	}
 }
 
 func (r *userRepo) CacheSRPServer(ctx context.Context, email string, server *srp.Server) error {

@@ -65,6 +65,8 @@ type UserRepo interface {
 	List(ctx context.Context, pageSize int, pageToken string, userView UserView) (*UserPage, error)
 	BatchCreate(ctx context.Context, users []*User) ([]*User, error)
 
+	IsAdminUser(ctx context.Context, userId int64) (bool, error)
+
 	CacheSRPServer(ctx context.Context, email string, server *srp.Server) error
 	GetSRPServer(ctx context.Context, email string) (*srp.Server, error)
 }
@@ -72,8 +74,7 @@ type UserRepo interface {
 type UserUsecase struct {
 	repo   UserRepo
 	params *srp.Params
-
-	log *log.Helper
+	log    *log.Helper
 }
 
 func NewUserUsecase(repo UserRepo, params *srp.Params, logger log.Logger) *UserUsecase {
@@ -219,6 +220,10 @@ func (uc *UserUsecase) ListUsers(
 	}
 
 	return protoUsers, page.NextPageToken, nil
+}
+
+func (uc *UserUsecase) IsAdminUser(ctx context.Context, userId int64) (bool, error) {
+	return uc.repo.IsAdminUser(ctx, userId)
 }
 
 func toUserStatus(p v1.User_Status) UserStatus {

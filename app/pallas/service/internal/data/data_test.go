@@ -63,19 +63,6 @@ func FlushAll(t *testing.T) {
 	}
 }
 
-func CheckDefault(t *testing.T) {
-	for k := range dd.d.GroupsId {
-		if k != "Admin" && k != "User" && k != "Anonymous" {
-			t.Fatalf("expected default group: %s", k)
-		}
-	}
-}
-
-func CheckMigration(t *testing.T) {
-	t.Run("CheckDefault", CheckDefault)
-	t.Run("FlushAll", FlushAll)
-}
-
 func TestMySQL(t *testing.T) {
 	var (
 		err     error
@@ -95,9 +82,9 @@ func TestMySQL(t *testing.T) {
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, params, logger)
+	Migration(entClient, params, logger)
 
-	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
+	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, &MigrationStatus{}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,9 +112,9 @@ func TestPostgres(t *testing.T) {
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, params, logger)
+	Migration(entClient, params, logger)
 
-	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
+	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, &MigrationStatus{}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,9 +142,9 @@ func TestSQLite3(t *testing.T) {
 	entClient := NewEntClient(c, logger)
 	redisCmd := NewRedisCmd(c, logger)
 	redisCache := NewRedisCache(redisCmd, c)
-	d := Migration(entClient, params, logger)
+	Migration(entClient, params, logger)
 
-	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, d, logger)
+	dd, cleanup, err = NewData(entClient, redisCmd, redisCache, c, &MigrationStatus{}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
