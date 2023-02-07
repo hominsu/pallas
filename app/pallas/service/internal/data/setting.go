@@ -20,21 +20,27 @@ import (
 
 var _ biz.SettingRepo = (*settingRepo)(nil)
 
-const settingCacheKey = "setting_cache_key_"
+const settingCacheKeyPrefix = "setting_cache_key_"
 
 type settingRepo struct {
 	data *Data
+	ck   map[string][]string
 	sg   *singleflight.Group
 	log  *log.Helper
 }
 
 // NewSettingRepo .
 func NewSettingRepo(data *Data, logger log.Logger) biz.SettingRepo {
-	return &settingRepo{
+	sr := &settingRepo{
 		data: data,
 		sg:   &singleflight.Group{},
 		log:  log.NewHelper(log.With(logger, "module", "data/setting")),
 	}
+	sr.ck["Get"] = []string{"get", "setting", "id"}
+	sr.ck["GetByName"] = []string{"get", "setting", "name"}
+	sr.ck["List"] = []string{"list", "group"}
+	sr.ck["ListByType"] = []string{"list", "group", "type"}
+	return sr
 }
 
 func (r *settingRepo) Create(ctx context.Context, s *biz.Setting) (*biz.Setting, error) {
@@ -62,7 +68,7 @@ func (r *settingRepo) Create(ctx context.Context, s *biz.Setting) (*biz.Setting,
 
 func (r *settingRepo) Get(ctx context.Context, id int64) (*biz.Setting, error) {
 	// key: setting_cache_key_get_setting_id:settingId
-	key := r.cacheKeyPrefix(strconv.FormatInt(id, 10), "get", "setting", "id")
+	key := r.cacheKey(strconv.FormatInt(id, 10), r.ck["Get"]...)
 	res, err, _ := r.sg.Do(key, func() (any, error) {
 		get := &ent.Setting{}
 		// get cache
@@ -93,7 +99,7 @@ func (r *settingRepo) Get(ctx context.Context, id int64) (*biz.Setting, error) {
 
 func (r *settingRepo) GetByName(ctx context.Context, name string) (*biz.Setting, error) {
 	// key: setting_cache_key_get_setting_id:settingId
-	key := r.cacheKeyPrefix(name, "get", "setting", "name")
+	key := r.cacheKey(name, r.ck["GetByName"]...)
 	res, err, _ := r.sg.Do(key, func() (any, error) {
 		get := &ent.Setting{}
 		// get cache
@@ -139,13 +145,13 @@ func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting,
 		if err = r.deleteCache(
 			ctx,
 			// key: setting_cache_key_get_setting_id:settingId
-			r.cacheKeyPrefix(strconv.FormatInt(int64(res.ID), 10), "get", "setting", "id"),
+			r.cacheKey(strconv.FormatInt(int64(res.ID), 10), r.ck["Get"]...),
 			// key: setting_cache_key_get_setting_id:settingId
-			r.cacheKeyPrefix(res.Name, "get", "setting", "name"),
+			r.cacheKey(res.Name, r.ck["GetByName"]...),
 			// key: setting_cache_key_list_group:all
-			r.cacheKeyPrefix("all", "list", "group"),
+			r.cacheKey("all", r.ck["List"]...),
 			// key: setting_cache_key_list_group_type:settingType
-			r.cacheKeyPrefix(res.Type.String(), "list", "group", "type"),
+			r.cacheKey(res.Type.String(), r.ck["ListByType"]...),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -174,13 +180,13 @@ func (r *settingRepo) Delete(ctx context.Context, id int64) error {
 		if err = r.deleteCache(
 			ctx,
 			// key: setting_cache_key_get_setting_id:settingId
-			r.cacheKeyPrefix(strconv.FormatInt(id, 10), "get", "setting", "id"),
+			r.cacheKey(strconv.FormatInt(id, 10), r.ck["Get"]...),
 			// key: setting_cache_key_get_setting_id:settingId
-			r.cacheKeyPrefix(res.Name, "get", "setting", "name"),
+			r.cacheKey(res.Name, r.ck["GetByName"]...),
 			// key: setting_cache_key_list_group:all
-			r.cacheKeyPrefix("all", "list", "group"),
+			r.cacheKey("all", r.ck["List"]...),
 			// key: setting_cache_key_list_group_type:settingType
-			r.cacheKeyPrefix(res.Type.String(), "list", "group", "type"),
+			r.cacheKey(res.Type.String(), r.ck["ListByType"]...),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -195,7 +201,7 @@ func (r *settingRepo) Delete(ctx context.Context, id int64) error {
 
 func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
 	// key: setting_cache_key_list_group:all
-	key := r.cacheKeyPrefix("all", "list", "group")
+	key := r.cacheKey("all", r.ck["List"]...)
 	res, err, _ := r.sg.Do(key, func() (any, error) {
 		var entList []*ent.Setting
 		// get cache
@@ -232,7 +238,7 @@ func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
 
 func (r *settingRepo) ListByType(ctx context.Context, t settings.SettingType) ([]*biz.Setting, error) {
 	// key: setting_cache_key_list_group_type:settingType
-	key := r.cacheKeyPrefix(t.String(), "list", "group", "type")
+	key := r.cacheKey(t.String(), r.ck["ListByType"]...)
 	res, err, _ := r.sg.Do(key, func() (any, error) {
 		var entList []*ent.Setting
 		// get cache
@@ -306,9 +312,9 @@ func (r *settingRepo) createBuilder(setting *biz.Setting) (*ent.SettingCreate, e
 	return m, nil
 }
 
-func (r *settingRepo) cacheKeyPrefix(unique string, a ...string) string {
+func (r *settingRepo) cacheKey(unique string, a ...string) string {
 	s := strings.Join(a, "_")
-	return settingCacheKey + s + ":" + unique
+	return settingCacheKeyPrefix + s + ":" + unique
 }
 
 // deleteCache delete the cache both local cache and redis

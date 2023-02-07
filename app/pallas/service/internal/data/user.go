@@ -22,21 +22,27 @@ import (
 
 var _ biz.UserRepo = (*userRepo)(nil)
 
-const userCacheKey = "user_cache_key_"
+const userCacheKeyPrefix = "user_cache_key_"
 
 type userRepo struct {
 	data *Data
+	ck   map[string][]string
 	sg   *singleflight.Group
 	log  *log.Helper
 }
 
 // NewUserRepo .
 func NewUserRepo(data *Data, logger log.Logger) biz.UserRepo {
-	return &userRepo{
+	ur := &userRepo{
 		data: data,
 		sg:   &singleflight.Group{},
 		log:  log.NewHelper(log.With(logger, "module", "data/user")),
 	}
+	ur.ck["Get"] = []string{"get", "user", "id"}
+	ur.ck["GetByEmail"] = []string{"get", "user", "email"}
+	ur.ck["List"] = []string{"list", "user"}
+	ur.ck["IsAdminUser"] = []string{"is", "admin", "user", "id"}
+	return ur
 }
 
 func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error) {
@@ -72,7 +78,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_get_user_id:userId
-		key = r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id")
+		key = r.cacheKey(strconv.FormatInt(userId, 10), r.ck["Get"]...)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
@@ -85,7 +91,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 		})
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_get_user_id_edge_ids:userId
-		key = r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id", "edge_ids")
+		key = r.cacheKey(strconv.FormatInt(userId, 10), append(r.ck["Get"], "edge_ids")...)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
@@ -132,7 +138,7 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_get_user_email:userEmail
-		key = r.cacheKeyPrefix(email, "get", "user", "email")
+		key = r.cacheKey(email, r.ck["GetByEmail"]...)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
@@ -145,7 +151,7 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 		})
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_get_user_email_edge_ids:userEmail
-		key = r.cacheKeyPrefix(email, "get", "user", "email", "edge_ids")
+		key = r.cacheKey(email, append(r.ck["GetByEmail"], "edge_ids")...)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
@@ -202,13 +208,15 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 		if err = r.deleteCache(
 			ctx,
 			// key: user_cache_key_get_user_id:userId
-			r.cacheKeyPrefix(strconv.FormatInt(int64(res.ID), 10), "get", "user", "id"),
+			r.cacheKey(strconv.FormatInt(int64(res.ID), 10), r.ck["Get"]...),
 			// key: user_cache_key_get_user_id_edge_ids:userId
-			r.cacheKeyPrefix(strconv.FormatInt(int64(res.ID), 10), "get", "user", "id", "edge_ids"),
+			r.cacheKey(strconv.FormatInt(int64(res.ID), 10), append(r.ck["Get"], "edge_ids")...),
 			// key: user_cache_key_get_user:userEmail
-			r.cacheKeyPrefix(res.Email, "get", "user", "email"),
+			r.cacheKey(res.Email, r.ck["GetByEmail"]...),
 			// key: user_cache_key_get_user_edge_ids:userEmail
-			r.cacheKeyPrefix(res.Email, "get", "user", "email", "edge_ids"),
+			r.cacheKey(res.Email, append(r.ck["GetByEmail"], "edge_ids")...),
+			// key: user_cache_key_is_admin_user_id:userId
+			r.cacheKey(strconv.FormatInt(int64(res.ID), 10), r.ck["IsAdminUser"]...),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -217,7 +225,7 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 		if err = r.deleteKeysByScanPrefix(
 			ctx,
 			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
-			userCacheKey+"list_user",
+			userCacheKeyPrefix+strings.Join(r.ck["List"], "_"),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -247,13 +255,15 @@ func (r *userRepo) Delete(ctx context.Context, userId int64) error {
 		if err = r.deleteCache(
 			ctx,
 			// key: user_cache_key_get_user_id:userId
-			r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id"),
+			r.cacheKey(strconv.FormatInt(userId, 10), r.ck["Get"]...),
 			// key: user_cache_key_get_user_id_edge_ids:userId
-			r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "get", "user", "id", "edge_ids"),
+			r.cacheKey(strconv.FormatInt(userId, 10), append(r.ck["Get"], "edge_ids")...),
 			// key: user_cache_key_get_user:userEmail
-			r.cacheKeyPrefix(res.Email, "get", "user", "email"),
+			r.cacheKey(res.Email, r.ck["GetByEmail"]...),
 			// key: user_cache_key_get_user_edge_ids:userEmail
-			r.cacheKeyPrefix(res.Email, "get", "user", "email", "edge_ids"),
+			r.cacheKey(res.Email, append(r.ck["GetByEmail"], "edge_ids")...),
+			// key: user_cache_key_is_admin_user_id:userId
+			r.cacheKey(strconv.FormatInt(userId, 10), r.ck["IsAdminUser"]...),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -262,7 +272,7 @@ func (r *userRepo) Delete(ctx context.Context, userId int64) error {
 		if err = r.deleteKeysByScanPrefix(
 			ctx,
 			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
-			userCacheKey+"list_user",
+			userCacheKeyPrefix+strings.Join(r.ck["List"], "_"),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -302,9 +312,9 @@ func (r *userRepo) List(
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_list_user:pageSize_pageToken
-		key = r.cacheKeyPrefix(
+		key = r.cacheKey(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
-			"list", "user",
+			r.ck["List"]...,
 		)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.User
@@ -318,9 +328,9 @@ func (r *userRepo) List(
 		})
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_list_user_edge_ids:pageSize_pageToken
-		key = r.cacheKeyPrefix(
+		key = r.cacheKey(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
-			"list", "user", "edge_ids",
+			append(r.ck["List"], "edge_ids")...,
 		)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.User
@@ -422,8 +432,8 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 }
 
 func (r *userRepo) IsAdminUser(ctx context.Context, userId int64) (bool, error) {
-	// key: user_cache_key_get_user_id_edge_ids:userId
-	key := r.cacheKeyPrefix(strconv.FormatInt(userId, 10), "is", "admin", "user", "id")
+	// key: user_cache_key_is_admin_user_id:userId
+	key := r.cacheKey(strconv.FormatInt(userId, 10), r.ck["IsAdminUser"]...)
 	var res bool
 	// get cache
 	err := r.data.cache.Get(ctx, key, res)
@@ -477,9 +487,9 @@ func (r *userRepo) GetSRPServer(ctx context.Context, email string) (*srp.Server,
 	return get, nil
 }
 
-func (r *userRepo) cacheKeyPrefix(unique string, a ...string) string {
+func (r *userRepo) cacheKey(unique string, a ...string) string {
 	s := strings.Join(a, "_")
-	return userCacheKey + s + ":" + unique
+	return userCacheKeyPrefix + s + ":" + unique
 }
 
 // deleteCache delete the cache both local cache and redis

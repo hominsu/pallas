@@ -21,21 +21,25 @@ import (
 
 var _ biz.GroupRepo = (*groupRepo)(nil)
 
-const groupCacheKey = "group_cache_key_"
+const groupCacheKeyPrefix = "group_cache_key_"
 
 type groupRepo struct {
 	data *Data
+	ck   map[string][]string
 	sg   *singleflight.Group
 	log  *log.Helper
 }
 
 // NewGroupRepo .
 func NewGroupRepo(data *Data, logger log.Logger) biz.GroupRepo {
-	return &groupRepo{
+	gr := &groupRepo{
 		data: data,
 		sg:   &singleflight.Group{},
 		log:  log.NewHelper(log.With(logger, "module", "data/group")),
 	}
+	gr.ck["Get"] = []string{"get", "group", "id"}
+	gr.ck["List"] = []string{"list", "group"}
+	return gr
 }
 
 func (r *groupRepo) Create(ctx context.Context, group *biz.Group) (*biz.Group, error) {
@@ -71,7 +75,7 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 	switch groupView {
 	case biz.GroupViewViewUnspecified, biz.GroupViewBasic:
 		// key: group_cache_key_get_group_id:groupId
-		key = r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id")
+		key = r.cacheKey(strconv.FormatInt(groupId, 10), r.ck["Get"]...)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.Group{}
 			// get cache
@@ -84,7 +88,7 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 		})
 	case biz.GroupViewWithEdgeIds:
 		// key: group_cache_key_get_group_id:groupId
-		key = r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id", "edge_ids")
+		key = r.cacheKey(strconv.FormatInt(groupId, 10), append(r.ck["Get"], "edge_ids")...)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.Group{}
 			// get cache
@@ -141,9 +145,9 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 		if err = r.deleteCache(
 			ctx,
 			// key: group_cache_key_get_group_id:groupId
-			r.cacheKeyPrefix(strconv.FormatInt(group.Id, 10), "get", "group", "id"),
+			r.cacheKey(strconv.FormatInt(group.Id, 10), r.ck["Get"]...),
 			// key: group_cache_key_get_group_id:groupId
-			r.cacheKeyPrefix(strconv.FormatInt(group.Id, 10), "get", "group", "id", "edge_ids"),
+			r.cacheKey(strconv.FormatInt(group.Id, 10), append(r.ck["Get"], "edge_ids")...),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -152,7 +156,7 @@ func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, e
 		if err = r.deleteKeysByScanPrefix(
 			ctx,
 			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
-			groupCacheKey+"list_group",
+			groupCacheKeyPrefix+strings.Join(r.ck["List"], "_"),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -175,9 +179,9 @@ func (r *groupRepo) Delete(ctx context.Context, groupId int64) error {
 		if err = r.deleteCache(
 			ctx,
 			// key: group_cache_key_get_group_id:groupId
-			r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id"),
+			r.cacheKey(strconv.FormatInt(groupId, 10), r.ck["Get"]...),
 			// key: group_cache_key_get_group_id:groupId
-			r.cacheKeyPrefix(strconv.FormatInt(groupId, 10), "get", "group", "id", "edge_ids"),
+			r.cacheKey(strconv.FormatInt(groupId, 10), append(r.ck["Get"], "edge_ids")...),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -186,7 +190,7 @@ func (r *groupRepo) Delete(ctx context.Context, groupId int64) error {
 		if err = r.deleteKeysByScanPrefix(
 			ctx,
 			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
-			groupCacheKey+"list_group",
+			groupCacheKeyPrefix+strings.Join(r.ck["List"], "_"),
 		); err != nil {
 			r.log.Error(err)
 		}
@@ -226,9 +230,9 @@ func (r *groupRepo) List(
 	switch groupView {
 	case biz.GroupViewViewUnspecified, biz.GroupViewBasic:
 		// key: group_cache_key_list_group:pageSize_pageToken
-		key = r.cacheKeyPrefix(
+		key = r.cacheKey(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
-			"list", "group",
+			r.ck["List"]...,
 		)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.Group
@@ -242,9 +246,9 @@ func (r *groupRepo) List(
 		})
 	case biz.GroupViewWithEdgeIds:
 		// key: group_cache_key_list_group:pageSize_pageToken
-		key = r.cacheKeyPrefix(
+		key = r.cacheKey(
 			strings.Join([]string{strconv.FormatInt(int64(pageSize), 10), pageToken}, "_"),
-			"list", "group", "edge_ids",
+			append(r.ck["List"], "edge_ids")...,
 		)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.Group
@@ -343,9 +347,9 @@ func (r *groupRepo) createBuilder(group *biz.Group) (*ent.GroupCreate, error) {
 	return m, nil
 }
 
-func (r *groupRepo) cacheKeyPrefix(unique string, a ...string) string {
+func (r *groupRepo) cacheKey(unique string, a ...string) string {
 	s := strings.Join(a, "_")
-	return groupCacheKey + s + ":" + unique
+	return groupCacheKeyPrefix + s + ":" + unique
 }
 
 // deleteCache delete the cache both local cache and redis
