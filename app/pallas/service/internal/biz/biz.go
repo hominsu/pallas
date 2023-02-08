@@ -17,4 +17,8 @@ const (
 	// MaxBatchCreateSize is the maximum number of entries that can be created by a single BatchCreate call. Requests
 	// exceeding this batch size will return an error.
 	MaxBatchCreateSize = 1000
+
+	// MaxBatchUpdateSize is the maximum number of entries that can be updated by a single BatchUpdate call. Requests
+	// exceeding this batch size will return an error.
+	MaxBatchUpdateSize = 1000
 )
