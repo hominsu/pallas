@@ -63,7 +63,6 @@ func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error
 	case ent.IsConstraintError(err):
 		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
 	default:
-		r.log.Errorf("unknown err: %v", err)
 		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
 }
@@ -218,15 +217,16 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 			// key: user_cache_key_is_admin_user_id:userId
 			r.cacheKey(strconv.FormatInt(int64(res.ID), 10), r.ck["IsAdminUser"]...),
 		); err != nil {
+			// TODO: delete again using the asynchronous queue
 			r.log.Error(err)
 		}
-
 		// delete cache by scan redis
-		if err = r.deleteKeysByScanPrefix(
-			ctx,
-			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
+		if err = r.deleteKeysByScanPrefix(ctx,
+			// match key: user_cache_key_list_user:pageSize_pageToken and
+			// key: user_cache_key_list_user_edge_ids:pageSize_pageToken
 			userCacheKeyPrefix+strings.Join(r.ck["List"], "_"),
 		); err != nil {
+			// TODO: delete again using the asynchronous queue
 			r.log.Error(err)
 		}
 		return toUser(res)
@@ -235,7 +235,6 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 	case ent.IsConstraintError(err):
 		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
 	default:
-		r.log.Errorf("unknown err: %v", err)
 		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
 }
@@ -265,22 +264,22 @@ func (r *userRepo) Delete(ctx context.Context, userId int64) error {
 			// key: user_cache_key_is_admin_user_id:userId
 			r.cacheKey(strconv.FormatInt(userId, 10), r.ck["IsAdminUser"]...),
 		); err != nil {
+			// TODO: delete again using the asynchronous queue
 			r.log.Error(err)
 		}
-
 		// delete cache by scan redis
-		if err = r.deleteKeysByScanPrefix(
-			ctx,
-			// match key: user_cache_key_list_user:pageSize_pageToken and key: user_cache_key_list_user_edge_ids:pageSize_pageToken
+		if err = r.deleteKeysByScanPrefix(ctx,
+			// match key: user_cache_key_list_user:pageSize_pageToken and
+			// key: user_cache_key_list_user_edge_ids:pageSize_pageToken
 			userCacheKeyPrefix+strings.Join(r.ck["List"], "_"),
 		); err != nil {
+			// TODO: delete again using the asynchronous queue
 			r.log.Error(err)
 		}
 		return nil
 	case ent.IsNotFound(err):
 		return v1.ErrorNotFoundError("not found: %s", err)
 	default:
-		r.log.Errorf("unknown err: %v", err)
 		return v1.ErrorUnknownError("unknown error: %s", err)
 	}
 }
@@ -411,7 +410,6 @@ func (r *userRepo) BatchCreate(ctx context.Context, users []*biz.User) ([]*biz.U
 	case ent.IsConstraintError(err):
 		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
 	default:
-		r.log.Errorf("unknown err: %v", err)
 		return nil, v1.ErrorUnknownError("unknown error: %s", err)
 	}
 }
@@ -506,7 +504,7 @@ func (r *userRepo) deleteCache(ctx context.Context, key ...string) error {
 // notice that this function will not delete the keys on local cache
 func (r *userRepo) deleteKeysByScanPrefix(ctx context.Context, prefix ...string) error {
 	for _, p := range prefix {
-		iter := r.data.rdCmd.Scan(ctx, 0, p+":*", 0).Iterator()
+		iter := r.data.rdCmd.Scan(ctx, 0, p+"*", 0).Iterator()
 		for iter.Next(ctx) {
 			if err := r.data.rdCmd.Del(ctx, iter.Val()).Err(); err != nil {
 				return v1.ErrorInternalError("delete user cache keys by scan prefix error: %v", err)

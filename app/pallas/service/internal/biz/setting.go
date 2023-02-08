@@ -24,6 +24,7 @@ type SettingRepo interface {
 	List(ctx context.Context) ([]*Setting, error)
 	ListByType(ctx context.Context, t settings.SettingType) ([]*Setting, error)
 	BatchCreate(ctx context.Context, settings []*Setting) ([]*Setting, error)
+	BatchUpsert(ctx context.Context, settings []*Setting) error
 }
 
 type SettingUsecase struct {
