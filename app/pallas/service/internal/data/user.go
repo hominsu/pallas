@@ -46,24 +46,21 @@ func NewUserRepo(data *Data, logger log.Logger) biz.UserRepo {
 }
 
 func (r *userRepo) Create(ctx context.Context, user *biz.User) (*biz.User, error) {
-	m, err := r.createBuilder(user)
-	if err != nil {
-		return nil, v1.ErrorInternalError("internal error: %s", err)
-	}
+	m := r.createBuilder(user)
 	res, err := m.Save(ctx)
 	switch {
 	case err == nil:
-		u, er := toUser(res)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", er)
+		u, tErr := toUser(res)
+		if tErr != nil {
+			return nil, v1.ErrorInternal("internal error: %v", tErr)
 		}
 		return u, nil
 	case sqlgraph.IsUniqueConstraintError(err):
-		return nil, v1.ErrorAlreadyExistsError("user already exists: %s", err)
+		return nil, v1.ErrorConflict("user already exists: %v", err)
 	case ent.IsConstraintError(err):
-		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
+		return nil, v1.ErrorConflict("invalid argument: %v", err)
 	default:
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
@@ -81,12 +78,12 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
-			er := r.data.cache.Get(ctx, key, get)
-			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+			cErr := r.data.cache.Get(ctx, key, get)
+			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
-				get, er = r.data.db.User.Get(ctx, id)
+				get, cErr = r.data.db.User.Get(ctx, id)
 			}
-			return get, er
+			return get, cErr
 		})
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_get_user_id_edge_ids:userId
@@ -94,10 +91,10 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
-			er := r.data.cache.Get(ctx, key, get)
-			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+			cErr := r.data.cache.Get(ctx, key, get)
+			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
-				get, er = r.data.db.User.Query().
+				get, cErr = r.data.db.User.Query().
 					Where(user.ID(id)).
 					WithOwnerGroup(func(query *ent.GroupQuery) {
 						query.Select(group.FieldID)
@@ -105,7 +102,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 					}).
 					Only(ctx)
 			}
-			return get, er
+			return get, cErr
 		})
 	default:
 		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
@@ -122,9 +119,9 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 		}
 		return toUser(res.(*ent.User))
 	case ent.IsNotFound(err): // db miss
-		return nil, v1.ErrorNotFoundError("not found: %s", err)
+		return nil, v1.ErrorNotFound("user not found: %v", err)
 	default: // error
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
@@ -141,12 +138,12 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
-			er := r.data.cache.Get(ctx, key, get)
-			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+			cErr := r.data.cache.Get(ctx, key, get)
+			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
-				get, er = r.data.db.User.Query().Where(user.EmailEQ(email)).Only(ctx)
+				get, cErr = r.data.db.User.Query().Where(user.EmailEQ(email)).Only(ctx)
 			}
-			return get, er
+			return get, cErr
 		})
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_get_user_email_edge_ids:userEmail
@@ -154,10 +151,10 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			get := &ent.User{}
 			// get cache
-			er := r.data.cache.Get(ctx, key, get)
-			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+			cErr := r.data.cache.Get(ctx, key, get)
+			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
-				get, er = r.data.db.User.Query().
+				get, cErr = r.data.db.User.Query().
 					Where(user.EmailEQ(email)).
 					WithOwnerGroup(func(query *ent.GroupQuery) {
 						query.Select(group.FieldID)
@@ -165,7 +162,7 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 					}).
 					Only(ctx)
 			}
-			return get, er
+			return get, cErr
 		})
 	default:
 		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
@@ -182,9 +179,9 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 		}
 		return toUser(res.(*ent.User))
 	case ent.IsNotFound(err): // db miss
-		return nil, v1.ErrorNotFoundError("not found: %s", err)
+		return nil, v1.ErrorNotFound("user not found: %v", err)
 	default: // error
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
@@ -231,11 +228,11 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 		}
 		return toUser(res)
 	case sqlgraph.IsUniqueConstraintError(err):
-		return nil, v1.ErrorAlreadyExistsError("user already exists: %s", err)
+		return nil, v1.ErrorConflict("user already exists: %v", err)
 	case ent.IsConstraintError(err):
-		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
+		return nil, v1.ErrorConflict("invalid argument: %v", err)
 	default:
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
@@ -278,9 +275,9 @@ func (r *userRepo) Delete(ctx context.Context, userId int64) error {
 		}
 		return nil
 	case ent.IsNotFound(err):
-		return v1.ErrorNotFoundError("not found: %s", err)
+		return v1.ErrorNotFound("user not found: %v", err)
 	default:
-		return v1.ErrorUnknownError("unknown error: %s", err)
+		return v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
@@ -295,9 +292,9 @@ func (r *userRepo) List(
 		Order(ent.Asc(user.FieldID)).
 		Limit(pageSize + 1)
 	if pageToken != "" {
-		token, er := pagination.DecodePageToken(pageToken)
-		if er != nil {
-			return nil, v1.ErrorDecodePageTokenError("%s", er)
+		token, pErr := pagination.DecodePageToken(pageToken)
+		if pErr != nil {
+			return nil, v1.ErrorInternal("decode page token err: %v", pErr)
 		}
 		listQuery = listQuery.Where(user.IDGTE(token))
 	}
@@ -318,12 +315,12 @@ func (r *userRepo) List(
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.User
 			// get cache
-			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
-			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+			cErr := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
+			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
-				entList, er = listQuery.All(ctx)
+				entList, cErr = listQuery.All(ctx)
 			}
-			return entList, er
+			return entList, cErr
 		})
 	case biz.UserViewWithEdgeIds:
 		// key: user_cache_key_list_user_edge_ids:pageSize_pageToken
@@ -334,15 +331,15 @@ func (r *userRepo) List(
 		res, err, _ = r.sg.Do(key, func() (any, error) {
 			var entList []*ent.User
 			// get cache
-			er := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
-			if er != nil && errors.Is(er, cache.ErrCacheMiss) { // cache miss
+			cErr := r.data.cache.GetSkippingLocalCache(ctx, key, &entList)
+			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
-				entList, er = listQuery.WithOwnerGroup(func(query *ent.GroupQuery) {
+				entList, cErr = listQuery.WithOwnerGroup(func(query *ent.GroupQuery) {
 					query.Select(group.FieldID)
 					query.Select(group.FieldName)
 				}).All(ctx)
 			}
-			return entList, er
+			return entList, cErr
 		})
 	default:
 		return nil, v1.ErrorInvalidArgument("invalid argument: unknown view")
@@ -365,56 +362,52 @@ func (r *userRepo) List(
 		if len(entList) == pageSize+1 {
 			nextPageToken, err = pagination.EncodePageToken(entList[len(entList)-1].ID)
 			if err != nil {
-				return nil, v1.ErrorEncodePageTokenError("%s", err)
+				return nil, v1.ErrorInternal("encode page token error: %v", err)
 			}
 			entList = entList[:len(entList)-1]
 		}
 
-		userList, er := toUserList(entList)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", er)
+		userList, tErr := toUserList(entList)
+		if tErr != nil {
+			return nil, v1.ErrorInternal("internal error: %v", tErr)
 		}
 		return &biz.UserPage{
 			Users:         userList,
 			NextPageToken: nextPageToken,
 		}, nil
 	case ent.IsNotFound(err): // db miss
-		return nil, v1.ErrorNotFoundError("not found: %s", err)
+		return nil, v1.ErrorNotFound("user not found: %v", err)
 	default: // error
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
 func (r *userRepo) BatchCreate(ctx context.Context, users []*biz.User) ([]*biz.User, error) {
 	if len(users) > biz.MaxBatchCreateSize {
-		return nil, v1.ErrorInvalidArgument("batch size cannot be greater than %d", biz.MaxBatchCreateSize)
+		return nil, v1.ErrorBatchSize("batch size cannot be greater than %d", biz.MaxBatchCreateSize)
 	}
 	bulk := make([]*ent.UserCreate, len(users))
 	for i, u := range users {
-		var err error
-		bulk[i], err = r.createBuilder(u)
-		if err != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", err)
-		}
+		bulk[i] = r.createBuilder(u)
 	}
 	res, err := r.data.db.User.CreateBulk(bulk...).Save(ctx)
 	switch {
 	case err == nil:
-		userList, er := toUserList(res)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", er)
+		userList, tErr := toUserList(res)
+		if tErr != nil {
+			return nil, v1.ErrorInternal("internal error: %v", tErr)
 		}
 		return userList, nil
 	case sqlgraph.IsUniqueConstraintError(err):
-		return nil, v1.ErrorAlreadyExistsError("user already exists: %s", err)
+		return nil, v1.ErrorConflict("user already exists: %v", err)
 	case ent.IsConstraintError(err):
-		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
+		return nil, v1.ErrorConflict("invalid argument: %v", err)
 	default:
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
-func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
+func (r *userRepo) createBuilder(user *biz.User) *ent.UserCreate {
 	m := r.data.db.User.Create()
 	m.SetEmail(user.Email)
 	m.SetNickName(user.NickName)
@@ -426,7 +419,7 @@ func (r *userRepo) createBuilder(user *biz.User) (*ent.UserCreate, error) {
 	if user.OwnerGroup != nil {
 		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
 	}
-	return m, nil
+	return m
 }
 
 func (r *userRepo) IsAdminUser(ctx context.Context, userId int64) (bool, error) {
@@ -457,7 +450,7 @@ func (r *userRepo) IsAdminUser(ctx context.Context, userId int64) (bool, error) 
 		}
 		return res, nil
 	default: // error
-		return false, v1.ErrorUnknownError("unknown error: %s", err)
+		return false, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
@@ -470,7 +463,7 @@ func (r *userRepo) CacheSRPServer(ctx context.Context, email string, server *srp
 	})
 	if err != nil {
 		r.log.Errorf("cache error: %v", err)
-		return v1.ErrorInternalError("cache srp error")
+		return v1.ErrorCacheOperation("cache srp error")
 	}
 	return nil
 }
@@ -480,7 +473,7 @@ func (r *userRepo) GetSRPServer(ctx context.Context, email string) (*srp.Server,
 	// get cache
 	err := r.data.cache.Get(ctx, email, get)
 	if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
-		return nil, v1.ErrorSrpExpiration("srp cache expired")
+		return nil, v1.ErrorCacheOperation("srp cache expired")
 	}
 	return get, nil
 }
@@ -494,7 +487,7 @@ func (r *userRepo) cacheKey(unique string, a ...string) string {
 func (r *userRepo) deleteCache(ctx context.Context, key ...string) error {
 	for _, k := range key {
 		if err := r.data.cache.Delete(ctx, k); err != nil {
-			return v1.ErrorInternalError("delete cache error: %v", err)
+			return v1.ErrorCacheOperation("delete cache error: %v", err)
 		}
 	}
 	return nil
@@ -507,11 +500,11 @@ func (r *userRepo) deleteKeysByScanPrefix(ctx context.Context, prefix ...string)
 		iter := r.data.rdCmd.Scan(ctx, 0, p+"*", 0).Iterator()
 		for iter.Next(ctx) {
 			if err := r.data.rdCmd.Del(ctx, iter.Val()).Err(); err != nil {
-				return v1.ErrorInternalError("delete user cache keys by scan prefix error: %v", err)
+				return v1.ErrorCacheOperation("delete user cache keys by scan prefix error: %v", err)
 			}
 		}
 		if err := iter.Err(); err != nil {
-			return v1.ErrorInternalError("delete user cache keys by scan prefix error: %v", err)
+			return v1.ErrorCacheOperation("delete user cache keys by scan prefix error: %v", err)
 		}
 	}
 	return nil

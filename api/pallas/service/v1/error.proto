@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package pallas.service.v1;
+
+import "errors/errors.proto";
+
+option go_package = "github.com/hominsu/pallas/api/pallas/service/v1;v1";
+option java_multiple_files = true;
+
+enum PallasErrorReason {
+  option (errors.default_code) = 500;
+
+  UNKNOWN = 0;
+  INTERNAL = 1;
+  NOT_FOUND = 2 [(errors.code) = 404];
+  CONFLICT = 3 [(errors.code) = 409];
+  BATCH_SIZE = 4 [(errors.code) = 400];
+  INVALID_ARGUMENT = 5 [(errors.code) = 400];
+  CACHE_OPERATION = 6;
+  SIGNIN_OPERATION = 7 [(errors.code) = 401];
+  BAD_GROUP_OPERATION = 8 [(errors.code) = 400];
+  EMAIL_DOMAIN_BANNED = 9 [(errors.code) = 400];
+  EMAIL_EXISTED = 10 [(errors.code) = 409];
+  EMAIL_NOT_ACTIVATED = 11 [(errors.code) = 400];
+}

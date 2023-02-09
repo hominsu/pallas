@@ -72,46 +72,105 @@ type UserRepo interface {
 }
 
 type UserUsecase struct {
-	repo   UserRepo
+	ur     UserRepo
+	gr     GroupRepo
+	sr     SettingRepo
 	params *srp.Params
 	log    *log.Helper
 }
 
-func NewUserUsecase(repo UserRepo, params *srp.Params, logger log.Logger) *UserUsecase {
+func NewUserUsecase(ur UserRepo, gr GroupRepo, sr SettingRepo, params *srp.Params, logger log.Logger) *UserUsecase {
 	return &UserUsecase{
-		repo:   repo,
+		ur:     ur,
+		gr:     gr,
+		sr:     sr,
 		params: params,
 		log:    log.NewHelper(logger),
 	}
 }
 
 func (uc *UserUsecase) Signup(ctx context.Context, email string, salt, verifier []byte) (*v1.User, error) {
+	options, err := uc.sr.ListByType(ctx, TypeRegister)
+	if err != nil {
+		return nil, err
+	}
+
+	// email filter
+	if *options[RegisterMailFilter].Value != "off" {
+		filterList := strings.Split(*options[RegisterMailFilterList].Value, ",")
+		emailSplit := strings.Split(email, "@")
+		filterStatus := utils.StringsContain(filterList, emailSplit[len(emailSplit)-1])
+		eErr := v1.ErrorEmailDomainBanned("email domain is banned")
+		if *options[RegisterMailFilter].Value == "blacklist" && filterStatus {
+			return nil, eErr
+		}
+		if *options[RegisterMailFilter].Value == "whitelist" && !filterStatus {
+			return nil, eErr
+		}
+	}
+
+	get, err := uc.gr.GetByName(ctx, *options[RegisterDefaultGroup].Value, GroupViewBasic)
+	if err != nil {
+		return nil, err
+	}
+	activeRequire := *options[RegisterMailActive].Value == "true"
+	ownerGroupId := get.Id
+
 	u := &User{
-		Email:    email,
-		NickName: strings.Split(email, "@")[0],
-		Salt:     salt,
-		Verifier: verifier,
-		Storage:  1 * utils.GibiByte,
-		Score:    0,
-		Status:   StatusActive,
+		Email:      email,
+		NickName:   strings.Split(email, "@")[0],
+		Salt:       salt,
+		Verifier:   verifier,
+		Storage:    1 * utils.GibiByte,
+		Score:      0,
+		Status:     StatusActive,
+		OwnerGroup: &Group{Id: ownerGroupId},
 	}
-	res, err := uc.repo.Create(ctx, u)
-	if err != nil {
-		return nil, err
-	}
-
-	protoUser, err := ToProtoUser(res)
-	if err != nil {
-		return nil, err
+	if activeRequire {
+		u.Status = StatusNonActivated
 	}
 
-	return protoUser, nil
+	var (
+		targetUser             *User
+		targetUserNotActivated = false
+	)
+
+	targetUser, err = uc.ur.Create(ctx, u)
+	switch {
+	case err != nil && v1.IsConflict(err):
+		var uErr error
+		targetUser, uErr = uc.ur.GetByEmail(ctx, email, UserViewBasic)
+		if uErr != nil {
+			return nil, err
+		}
+		if targetUser.Status == StatusNonActivated {
+			targetUserNotActivated = true
+		} else {
+			return nil, v1.ErrorEmailExisted("email already in use")
+		}
+		fallthrough
+	case err == nil:
+		//if activeRequire {
+		//	// TODO: send email to active
+		//}
+		// email already registered but no activated
+		if targetUserNotActivated {
+			return nil, v1.ErrorEmailNotActivated("user is not activated, resend the activation email")
+		}
+		protoUser, tErr := ToProtoUser(targetUser)
+		if tErr != nil {
+			return nil, tErr
+		}
+		return protoUser, nil
+	default:
+		return nil, err
+	}
 }
 
 func (uc *UserUsecase) SigninA(ctx context.Context, email string, a []byte) ([]byte, error) {
 	secret, err := srp.GenKey()
 	if err != nil {
-		return nil, v1.ErrorInternalError("failed in gen key: %v", err)
+		return nil, v1.ErrorSigninOperation("failed in gen key: %v", err)
 	}
 	verifier, err := uc.getUserVerifier(ctx, email)
 	if err != nil {
@@ -120,27 +179,27 @@ func (uc *UserUsecase) SigninA(ctx context.Context, email string, a []byte) ([]b
 
 	server := srp.NewServer(uc.params, verifier, secret)
 	if err = server.SetA(a); err != nil {
-		return nil, v1.ErrorInternalError("failed in set a: %v", err)
+		return nil, v1.ErrorSigninOperation("failed in set a: %v", err)
 	}
 	b := server.ComputeB()
-	if err = uc.repo.CacheSRPServer(ctx, email, server); err != nil {
+	if err = uc.ur.CacheSRPServer(ctx, email, server); err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
 func (uc *UserUsecase) SigninM(ctx context.Context, email string, m1 []byte) (userid int64, k []byte, err error) {
-	server, err := uc.repo.GetSRPServer(ctx, email)
+	server, err := uc.ur.GetSRPServer(ctx, email)
 	if err != nil {
 		return 0, nil, err
 	}
 
 	_, err = server.CheckM1(m1)
 	if err != nil {
-		return 0, nil, v1.ErrorPasswordMismatch("password mismatch")
+		return 0, nil, v1.ErrorSigninOperation("password mismatch")
 	}
 
-	res, err := uc.repo.GetByEmail(ctx, email, UserViewBasic)
+	res, err := uc.ur.GetByEmail(ctx, email, UserViewBasic)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -150,7 +209,7 @@ func (uc *UserUsecase) SigninM(ctx context.Context, email string, m1 []byte) (us
 }
 
 func (uc *UserUsecase) GetUser(ctx context.Context, userId int64) (*v1.User, error) {
-	res, err := uc.repo.Get(ctx, userId, UserViewWithEdgeIds)
+	res, err := uc.ur.Get(ctx, userId, UserViewWithEdgeIds)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +223,7 @@ func (uc *UserUsecase) GetUser(ctx context.Context, userId int64) (*v1.User, err
 }
 
 func (uc *UserUsecase) GetUserSalt(ctx context.Context, email string) ([]byte, error) {
-	res, err := uc.repo.GetByEmail(ctx, email, UserViewBasic)
+	res, err := uc.ur.GetByEmail(ctx, email, UserViewBasic)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +232,7 @@ func (uc *UserUsecase) GetUserSalt(ctx context.Context, email string) ([]byte, e
 }
 
 func (uc *UserUsecase) getUserVerifier(ctx context.Context, email string) ([]byte, error) {
-	res, err := uc.repo.GetByEmail(ctx, email, UserViewBasic)
+	res, err := uc.ur.GetByEmail(ctx, email, UserViewBasic)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +241,7 @@ func (uc *UserUsecase) getUserVerifier(ctx context.Context, email string) ([]byt
 }
 
 func (uc *UserUsecase) UpdateUser(ctx context.Context, user *User) (*v1.User, error) {
-	res, err := uc.repo.Update(ctx, user)
+	res, err := uc.ur.Update(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +255,7 @@ func (uc *UserUsecase) UpdateUser(ctx context.Context, user *User) (*v1.User, er
 }
 
 func (uc *UserUsecase) DeleteUser(ctx context.Context, userId int64) error {
-	if err := uc.repo.Delete(ctx, userId); err != nil {
+	if err := uc.ur.Delete(ctx, userId); err != nil {
 		return err
 	}
 	return nil
@@ -209,7 +268,7 @@ func (uc *UserUsecase) ListUsers(
 	view UserView,
 ) ([]*v1.User, string, error) {
 	// list users
-	page, err := uc.repo.List(ctx, pageSize, pageToken, view)
+	page, err := uc.ur.List(ctx, pageSize, pageToken, view)
 	if err != nil {
 		return nil, "", err
 	}
@@ -223,7 +282,7 @@ func (uc *UserUsecase) ListUsers(
 }
 
 func (uc *UserUsecase) IsAdminUser(ctx context.Context, userId int64) (bool, error) {
-	return uc.repo.IsAdminUser(ctx, userId)
+	return uc.ur.IsAdminUser(ctx, userId)
 }
 
 func toUserStatus(p v1.User_Status) UserStatus {

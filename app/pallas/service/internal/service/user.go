@@ -52,18 +52,18 @@ func (s *UserService) SigninM(ctx context.Context, req *v1.SigninMRequest) (*emp
 
 			session, err := s.store.Get(ht, "pallas-session")
 			if err != nil {
-				return nil, v1.ErrorSessionError("get session error: %v", err)
+				return nil, v1.ErrorInternal("get session error: %v", err)
 			}
 			session.Values[string(middleware.SessionKeyUserId)] = userid
 			session.Values[string(middleware.SessionKeyUserK)] = k
 			if err = session.Save(ht); err != nil {
-				return nil, v1.ErrorSessionError("save session error: %v", err)
+				return nil, v1.ErrorInternal("save session error: %v", err)
 			}
 
 			return &emptypb.Empty{}, nil
 		}
 	}
-	return nil, v1.ErrorInternalError("transport error")
+	return nil, v1.ErrorInternal("transport error")
 }
 
 func (s *UserService) SignOut(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
@@ -71,16 +71,16 @@ func (s *UserService) SignOut(ctx context.Context, _ *emptypb.Empty) (*emptypb.E
 		if ht, ok := tr.(*http.Transport); ok {
 			session, err := s.store.Get(ht, "pallas-session")
 			if err != nil {
-				return nil, v1.ErrorSessionError("get session error: %v", err)
+				return nil, v1.ErrorInternal("get session error: %v", err)
 			}
 			session.Options.MaxAge = -1
 			if err = session.Save(ht); err != nil {
-				return nil, v1.ErrorSessionError("save session error: %v", err)
+				return nil, v1.ErrorInternal("save session error: %v", err)
 			}
 			return &emptypb.Empty{}, nil
 		}
 	}
-	return nil, v1.ErrorInternalError("transport error")
+	return nil, v1.ErrorInternal("transport error")
 }
 
 func (s *UserService) GetUser(ctx context.Context, req *v1.GetUserRequest) (*v1.User, error) {
@@ -122,11 +122,11 @@ func (s *UserService) DeleteUser(ctx context.Context, req *v1.DeleteUserRequest)
 func getUserId(ctx context.Context) (int64, error) {
 	v := ctx.Value(middleware.ContextKeyUserId)
 	if v == nil {
-		return 0, v1.ErrorSessionError("missed userid")
+		return 0, v1.ErrorInternal("missed userid")
 	}
 	id, ok := v.(int64)
 	if !ok {
-		return 0, v1.ErrorInternalError("internal error")
+		return 0, v1.ErrorInternal("internal error")
 	}
 	return id, nil
 }
@@ -151,7 +151,7 @@ func checkUserId(ctx context.Context, userId int64) error {
 		return err
 	}
 	if userId != id {
-		return v1.ErrorUserMismatch("userid mismatch")
+		return v1.ErrorInternal("userid mismatch")
 	}
 	return nil
 }
