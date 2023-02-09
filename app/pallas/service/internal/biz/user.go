@@ -150,9 +150,9 @@ func (uc *UserUsecase) Signup(ctx context.Context, email string, salt, verifier 
 		}
 		fallthrough
 	case err == nil:
-		if activeRequire {
-			// TODO: send email to active
-		}
+		//if activeRequire {
+		//	// TODO: send email to active
+		//}
 		// email already registered but no activated
 		if targetUserNotActivated {
 			return nil, v1.ErrorEmailNotActivated("user is not activated, resend the activation email")
