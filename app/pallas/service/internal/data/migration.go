@@ -2,8 +2,6 @@ package data
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -12,7 +10,6 @@ import (
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/group"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/setting"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/user"
-	"github.com/hominsu/pallas/app/pallas/service/internal/data/settings"
 	"github.com/hominsu/pallas/pkg/srp"
 	"github.com/hominsu/pallas/pkg/utils"
 )
@@ -111,17 +108,13 @@ func createDefaultUser(ctx context.Context, client *ent.Client, params *srp.Para
 }
 
 func createDefaultSettings(ctx context.Context, client *ent.Client, helper *log.Helper) {
-	s := settings.DefaultSettings()
-
-	var bulk []*ent.SettingCreate
-	typ := reflect.TypeOf(s).Elem()
-	val := reflect.ValueOf(s).Elem()
-	for i := 0; i < typ.NumField(); i++ {
-		bulk = append(bulk, client.Setting.Create().
-			SetName(typ.Field(i).Name).
-			SetValue(fmt.Sprintf("%v", val.Field(i).Interface())).
-			SetType(settings.ToEntSettingType(settings.SettingTypeValue[typ.Field(i).Tag.Get("type")])),
-		)
+	bulk := make([]*ent.SettingCreate, len(defaultSettings))
+	for i, ds := range defaultSettings {
+		m := client.Setting.Create().
+			SetName(ds.n).
+			SetValue(ds.v).
+			SetType(toEntSettingType(ds.t))
+		bulk[i] = m
 	}
 
 	err := client.Setting.CreateBulk(bulk...).Exec(ctx)

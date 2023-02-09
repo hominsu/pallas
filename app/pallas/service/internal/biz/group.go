@@ -38,6 +38,7 @@ type GroupPage struct {
 type GroupRepo interface {
 	Create(ctx context.Context, group *Group) (*Group, error)
 	Get(ctx context.Context, groupId int64, groupView GroupView) (*Group, error)
+	GetByName(ctx context.Context, name string, groupView GroupView) (*Group, error)
 	Update(ctx context.Context, group *Group) (*Group, error)
 	Delete(ctx context.Context, groupId int64) error
 	List(ctx context.Context, pageSize int, pageToken string, groupView GroupView) (*GroupPage, error)
@@ -105,7 +106,7 @@ func (uc *GroupUsecase) DeleteGroup(ctx context.Context, groupId int64) error {
 	}
 
 	if len(res.Users) != 0 {
-		return v1.ErrorGroupNotEmpty("group's user is not empty")
+		return v1.ErrorBadGroupOperation("group's user is not empty")
 	}
 
 	if err = uc.repo.Delete(ctx, groupId); err != nil {

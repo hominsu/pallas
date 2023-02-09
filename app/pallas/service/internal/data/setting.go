@@ -16,7 +16,6 @@ import (
 	"github.com/hominsu/pallas/app/pallas/service/internal/biz"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent"
 	"github.com/hominsu/pallas/app/pallas/service/internal/data/ent/setting"
-	"github.com/hominsu/pallas/app/pallas/service/internal/data/settings"
 )
 
 var _ biz.SettingRepo = (*settingRepo)(nil)
@@ -49,17 +48,17 @@ func (r *settingRepo) Create(ctx context.Context, s *biz.Setting) (*biz.Setting,
 	res, err := m.Save(ctx)
 	switch {
 	case err != nil:
-		set, er := toSetting(res)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", err)
+		set, tErr := toSetting(res)
+		if tErr != nil {
+			return nil, v1.ErrorInternal("internal error: %v", err)
 		}
 		return set, nil
 	case sqlgraph.IsUniqueConstraintError(err):
-		return nil, v1.ErrorAlreadyExistsError("setting already exists: %s", err)
+		return nil, v1.ErrorConflict("setting already exists: %v", err)
 	case ent.IsConstraintError(err):
-		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
+		return nil, v1.ErrorConflict("invalid argument: %v", err)
 	default:
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorConflict("unknown error: %v", err)
 	}
 }
 
@@ -89,9 +88,9 @@ func (r *settingRepo) Get(ctx context.Context, id int64) (*biz.Setting, error) {
 		}
 		return toSetting(res.(*ent.Setting))
 	case ent.IsNotFound(err): // db miss
-		return nil, v1.ErrorNotFoundError("not found: %s", err)
+		return nil, v1.ErrorNotFound("setting not found: %v", err)
 	default: // error
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
@@ -123,36 +122,42 @@ func (r *settingRepo) GetByName(ctx context.Context, name string) (*biz.Setting,
 		}
 		return toSetting(res.(*ent.Setting))
 	case ent.IsNotFound(err): // db miss
-		return nil, v1.ErrorNotFoundError("not found: %s", err)
+		return nil, v1.ErrorNotFound("setting not found: %v", err)
 	default: // error
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
 func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting, error) {
 	tx, err := r.data.db.Tx(ctx)
 	if err != nil {
-		return nil, v1.ErrorInternalError("create transactional client error: %v", err)
+		return nil, v1.ErrorInternal("create transactional client error: %v", err)
 	}
 	defer func() {
 		if v := recover(); v != nil {
 			if rErr := tx.Rollback(); rErr != nil {
-				r.log.Warnf("rollback failed")
+				r.log.Warnf("rollback failed, err: %v", rErr)
 			}
 			panic(v)
 		}
 	}()
 
 	m := tx.Setting.UpdateOneID(int(s.Id))
-	m.SetName(s.Name)
-	m.SetValue(s.Value)
-	m.SetType(settings.ToEntSettingType(s.Type))
+	if s.Name != nil {
+		m.SetName(*s.Name)
+	}
+	if s.Value != nil {
+		m.SetValue(*s.Value)
+	}
+	if s.Type != nil {
+		m.SetType(toEntSettingType(*s.Type))
+	}
 	res, err := m.Save(ctx)
 
 	switch {
 	case err == nil:
 		if cErr := tx.Commit(); cErr != nil {
-			return nil, v1.ErrorInternalError("failed commits the transaction")
+			return nil, v1.ErrorInternal("failed commits the transaction, err: %v", cErr)
 		}
 		// delete indexed cache
 		if err = r.deleteCache(
@@ -172,13 +177,14 @@ func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting,
 		return toSetting(res)
 	default:
 		if rErr := tx.Rollback(); rErr != nil {
-			return nil, v1.ErrorInternalError("%v", fmt.Errorf("%w: rolling back transaction: %v", err, rErr))
+			return nil, v1.ErrorInternal("rollback failed, err: %v",
+				fmt.Errorf("%w: rolling back transaction: %v", err, rErr))
 		}
 		switch {
 		case ent.IsNotFound(err): // db miss
-			return nil, v1.ErrorNotFoundError("not found: %s", err)
+			return nil, v1.ErrorNotFound("setting not found: %v", err)
 		default: // error
-			return nil, v1.ErrorUnknownError("unknown error: %s", err)
+			return nil, v1.ErrorUnknown("unknown error: %v", err)
 		}
 	}
 }
@@ -199,7 +205,7 @@ func (r *settingRepo) Delete(ctx context.Context, id int64) error {
 			// key: setting_cache_key_get_setting_id:settingId
 			r.cacheKey(strconv.FormatInt(id, 10), r.ck["Get"]...),
 			// key: setting_cache_key_get_setting_name:settingName
-			r.cacheKey(res.Name, r.ck["GetByName"]...),
+			r.cacheKey(*res.Name, r.ck["GetByName"]...),
 			// key: setting_cache_key_list_group:all
 			r.cacheKey("all", r.ck["List"]...),
 			// key: setting_cache_key_list_group_type:settingType
@@ -210,13 +216,13 @@ func (r *settingRepo) Delete(ctx context.Context, id int64) error {
 		}
 		return nil
 	case ent.IsNotFound(err):
-		return v1.ErrorNotFoundError("not found: %s", err)
+		return v1.ErrorNotFound("setting not found: %v", err)
 	default:
-		return v1.ErrorUnknownError("unknown error: %s", err)
+		return v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
-func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
+func (r *settingRepo) List(ctx context.Context) (map[biz.SettingName]*biz.Setting, error) {
 	// key: setting_cache_key_list_group:all
 	key := r.cacheKey("all", r.ck["List"]...)
 	res, err, _ := r.sg.Do(key, func() (any, error) {
@@ -242,19 +248,19 @@ func (r *settingRepo) List(ctx context.Context) ([]*biz.Setting, error) {
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
-		settingList, er := toSettingsList(entList)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", er)
+		settingMap, tErr := toSettingsMap(entList)
+		if tErr != nil {
+			return nil, v1.ErrorInternal("internal error: %v", tErr)
 		}
-		return settingList, nil
+		return settingMap, nil
 	case ent.IsNotFound(err): // db miss
-		return nil, v1.ErrorNotFoundError("not found: %s", err)
+		return nil, v1.ErrorNotFound("setting not found: %v", err)
 	default: // error
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
-func (r *settingRepo) ListByType(ctx context.Context, t settings.SettingType) ([]*biz.Setting, error) {
+func (r *settingRepo) ListByType(ctx context.Context, t biz.SettingType) (map[biz.SettingName]*biz.Setting, error) {
 	// key: setting_cache_key_list_group_type:settingType
 	key := r.cacheKey(t.String(), r.ck["ListByType"]...)
 	res, err, _ := r.sg.Do(key, func() (any, error) {
@@ -264,7 +270,7 @@ func (r *settingRepo) ListByType(ctx context.Context, t settings.SettingType) ([
 		if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
 			// get from db
 			entList, err = r.data.db.Setting.Query().
-				Where(setting.TypeEQ(settings.ToEntSettingType(t))).
+				Where(setting.TypeEQ(toEntSettingType(t))).
 				All(ctx)
 		}
 		return entList, err
@@ -281,21 +287,21 @@ func (r *settingRepo) ListByType(ctx context.Context, t settings.SettingType) ([
 		}); err != nil {
 			r.log.Errorf("cache error: %v", err)
 		}
-		settingList, er := toSettingsList(entList)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", er)
+		settingMap, tErr := toSettingsMap(entList)
+		if tErr != nil {
+			return nil, v1.ErrorInternal("internal error: %v", tErr)
 		}
-		return settingList, nil
+		return settingMap, nil
 	case ent.IsNotFound(err): // db miss
-		return nil, v1.ErrorNotFoundError("not found: %s", err)
+		return nil, v1.ErrorNotFound("setting not found: %v", err)
 	default: // error
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
 func (r *settingRepo) BatchCreate(ctx context.Context, settings []*biz.Setting) ([]*biz.Setting, error) {
 	if len(settings) > biz.MaxBatchCreateSize {
-		return nil, v1.ErrorInvalidArgument("batch size cannot be greater than %d", biz.MaxBatchCreateSize)
+		return nil, v1.ErrorBatchSize("batch size cannot be greater than %d", biz.MaxBatchCreateSize)
 	}
 	bulk := make([]*ent.SettingCreate, len(settings))
 	for i, s := range settings {
@@ -304,33 +310,33 @@ func (r *settingRepo) BatchCreate(ctx context.Context, settings []*biz.Setting) 
 	res, err := r.data.db.Setting.CreateBulk(bulk...).Save(ctx)
 	switch {
 	case err == nil:
-		settingList, er := toSettingsList(res)
-		if er != nil {
-			return nil, v1.ErrorInternalError("internal error: %s", er)
+		settingList, tErr := toSettingsList(res)
+		if tErr != nil {
+			return nil, v1.ErrorInternal("internal error: %v", tErr)
 		}
 		return settingList, nil
 	case sqlgraph.IsUniqueConstraintError(err):
-		return nil, v1.ErrorAlreadyExistsError("setting already exists: %s", err)
+		return nil, v1.ErrorConflict("setting already exists: %v", err)
 	case ent.IsConstraintError(err):
-		return nil, v1.ErrorInvalidArgument("invalid argument: %s", err)
+		return nil, v1.ErrorConflict("invalid argument: %v", err)
 	default:
-		return nil, v1.ErrorUnknownError("unknown error: %s", err)
+		return nil, v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
 func (r *settingRepo) BatchUpsert(ctx context.Context, settings []*biz.Setting) error {
 	if len(settings) > biz.MaxBatchUpdateSize {
-		return v1.ErrorInvalidArgument("batch size cannot be greater than %d", biz.MaxBatchUpdateSize)
+		return v1.ErrorBatchSize("batch size cannot be greater than %d", biz.MaxBatchUpdateSize)
 	}
 
 	tx, err := r.data.db.Tx(ctx)
 	if err != nil {
-		return v1.ErrorInternalError("create transactional client error: %v", err)
+		return v1.ErrorInternal("create transactional client error: %v", err)
 	}
 	defer func() {
 		if v := recover(); v != nil {
 			if rErr := tx.Rollback(); rErr != nil {
-				r.log.Warnf("rollback failed")
+				r.log.Warnf("rollback failed, err: %v", rErr)
 			}
 			panic(v)
 		}
@@ -344,7 +350,7 @@ func (r *settingRepo) BatchUpsert(ctx context.Context, settings []*biz.Setting) 
 	switch {
 	case err == nil:
 		if cErr := tx.Commit(); cErr != nil {
-			return v1.ErrorInternalError("failed commits the transaction")
+			return v1.ErrorInternal("failed commits the transaction, err: %v", cErr)
 		}
 		// delete cache by scan redis
 		if err = r.deleteKeysByScanPrefix(ctx,
@@ -357,25 +363,38 @@ func (r *settingRepo) BatchUpsert(ctx context.Context, settings []*biz.Setting) 
 		return nil
 	default:
 		if rErr := tx.Rollback(); rErr != nil {
-			return v1.ErrorInternalError("%v", fmt.Errorf("%w: rolling back transaction: %v", err, rErr))
+			return v1.ErrorInternal("rollback failed, err: %v",
+				fmt.Errorf("%w: rolling back transaction: %v", err, rErr))
 		}
-		return v1.ErrorUnknownError("unknown error: %s", err)
+		return v1.ErrorUnknown("unknown error: %v", err)
 	}
 }
 
 func (r *settingRepo) createBuilder(s *biz.Setting) *ent.SettingCreate {
-	m := r.data.db.Setting.Create().
-		SetName(s.Name).
-		SetValue(s.Value).
-		SetType(settings.ToEntSettingType(s.Type))
+	m := r.data.db.Setting.Create()
+	if s.Name != nil {
+		m.SetName(*s.Name)
+	}
+	if s.Value != nil {
+		m.SetValue(*s.Value)
+	}
+	if s.Type != nil {
+		m.SetType(toEntSettingType(*s.Type))
+	}
 	return m
 }
 
 func (r *settingRepo) createTxBuilder(tx *ent.Tx, s *biz.Setting) *ent.SettingCreate {
-	m := tx.Setting.Create().
-		SetName(s.Name).
-		SetValue(s.Value).
-		SetType(settings.ToEntSettingType(s.Type))
+	m := tx.Setting.Create()
+	if s.Name != nil {
+		m.SetName(*s.Name)
+	}
+	if s.Value != nil {
+		m.SetValue(*s.Value)
+	}
+	if s.Type != nil {
+		m.SetType(toEntSettingType(*s.Type))
+	}
 	return m
 }
 
@@ -388,7 +407,7 @@ func (r *settingRepo) cacheKey(unique string, a ...string) string {
 func (r *settingRepo) deleteCache(ctx context.Context, key ...string) error {
 	for _, k := range key {
 		if err := r.data.cache.Delete(ctx, k); err != nil {
-			return v1.ErrorInternalError("delete cache error: %v", err)
+			return v1.ErrorCacheOperation("delete cache error: %v", err)
 		}
 	}
 	return nil
@@ -401,23 +420,26 @@ func (r *settingRepo) deleteKeysByScanPrefix(ctx context.Context, prefix ...stri
 		iter := r.data.rdCmd.Scan(ctx, 0, p+"*", 0).Iterator()
 		for iter.Next(ctx) {
 			if err := r.data.rdCmd.Del(ctx, iter.Val()).Err(); err != nil {
-				return v1.ErrorInternalError("delete setting cache keys by scan prefix error: %v", err)
+				return v1.ErrorCacheOperation("delete setting cache keys by scan prefix error: %v", err)
 			}
 		}
 		if err := iter.Err(); err != nil {
-			return v1.ErrorInternalError("delete setting cache keys by scan prefix error: %v", err)
+			return v1.ErrorCacheOperation("delete setting cache keys by scan prefix error: %v", err)
 		}
 	}
 	return nil
 }
 
-func toSetting(e *ent.Setting) (*biz.Setting, error) {
-	s := &biz.Setting{}
-	s.Id = int64(e.ID)
-	s.Name = e.Name
-	s.Value = e.Value
-	s.Type = settings.ToSettingType(e.Type)
-	return s, nil
+func toSettingsMap(e []*ent.Setting) (map[biz.SettingName]*biz.Setting, error) {
+	settingMap := make(map[biz.SettingName]*biz.Setting, len(e))
+	for _, entEntity := range e {
+		s, err := toSetting(entEntity)
+		if err != nil {
+			return nil, err
+		}
+		settingMap[biz.SettingName(*s.Name)] = s
+	}
+	return settingMap, nil
 }
 
 func toSettingsList(e []*ent.Setting) ([]*biz.Setting, error) {
@@ -431,3 +453,17 @@ func toSettingsList(e []*ent.Setting) ([]*biz.Setting, error) {
 	}
 	return settingList, nil
 }
+
+func toSetting(e *ent.Setting) (*biz.Setting, error) {
+	s := &biz.Setting{}
+	s.Id = int64(e.ID)
+	s.Name = &e.Name
+	s.Value = &e.Value
+	t := toSettingType(e.Type)
+	s.Type = &t
+	return s, nil
+}
+
+func toSettingType(e setting.Type) biz.SettingType { return biz.SettingType(e) }
+
+func toEntSettingType(s biz.SettingType) setting.Type { return setting.Type(s) }
