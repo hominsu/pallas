@@ -35,12 +35,12 @@ type Options struct {
 
 // Session stores the values and optional configuration for a session.
 type Session struct {
-	ID      string
+	store   Store
 	Values  map[any]any
 	Options *Options
-	IsNew   bool
-	store   Store
+	ID      string
 	name    string
+	IsNew   bool
 }
 
 // NewSession is called by session stores to create a new session instance.

@@ -12,11 +12,11 @@ type Client struct {
 	Secret     *big.Int
 	A          *big.Int
 	X          *big.Int
+	u          *big.Int
+	s          *big.Int
 	M1         []byte
 	M2         []byte
 	K          []byte
-	u          *big.Int
-	s          *big.Int
 }
 
 func NewClient(params *Params, salt, identity, password, secret []byte) *Client {
