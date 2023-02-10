@@ -74,12 +74,12 @@ func (s GobSerializer) Deserialize(d []byte, ss *Session) error {
 // RedisStore stores sessions in a redis backend.
 type RedisStore struct {
 	rdCmd         redis.Cmdable
-	Codecs        []securecookie.Codec
-	Options       *Options // default configuration
-	DefaultMaxAge int      // default Redis TTL for a MaxAge == 0 session
-	maxLength     int
-	keyPrefix     string
 	serializer    SessionSerializer
+	Options       *Options
+	keyPrefix     string
+	Codecs        []securecookie.Codec
+	DefaultMaxAge int
+	maxLength     int
 }
 
 func (s *RedisStore) SetMaxLength(l int) {

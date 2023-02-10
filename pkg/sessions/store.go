@@ -15,8 +15,8 @@ type Store interface {
 
 // CookieStore stores sessions using secure cookies.
 type CookieStore struct {
-	Codecs  []securecookie.Codec
 	Options *Options
+	Codecs  []securecookie.Codec
 }
 
 // NewCookieStore returns a new CookieStore.
