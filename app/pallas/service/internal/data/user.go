@@ -38,6 +38,7 @@ func NewUserRepo(data *Data, logger log.Logger) biz.UserRepo {
 		sg:   &singleflight.Group{},
 		log:  log.NewHelper(log.With(logger, "module", "data/user")),
 	}
+	ur.ck = make(map[string][]string)
 	ur.ck["Get"] = []string{"get", "user", "id"}
 	ur.ck["GetByEmail"] = []string{"get", "user", "email"}
 	ur.ck["List"] = []string{"list", "user"}

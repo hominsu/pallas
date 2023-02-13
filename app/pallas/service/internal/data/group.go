@@ -37,6 +37,7 @@ func NewGroupRepo(data *Data, logger log.Logger) biz.GroupRepo {
 		sg:   &singleflight.Group{},
 		log:  log.NewHelper(log.With(logger, "module", "data/group")),
 	}
+	gr.ck = make(map[string][]string)
 	gr.ck["Get"] = []string{"get", "group", "id"}
 	gr.ck["GetByName"] = []string{"get", "group", "name"}
 	gr.ck["List"] = []string{"list", "group"}

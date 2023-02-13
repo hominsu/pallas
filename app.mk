@@ -41,7 +41,7 @@ openapi:
 # build golang application
 build:
 	@if [ ! -d "./bin/" ]; then mkdir bin; fi
-	@go build -ldflags "-X main.Version=$(VERSION)" -o ./bin/ ./...
+	@go build -ldflags "-X main.Version=$(APP_VERSION)" -o ./bin/ ./...
 
 # clean build files
 clean:
