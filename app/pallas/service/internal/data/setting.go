@@ -36,6 +36,7 @@ func NewSettingRepo(data *Data, logger log.Logger) biz.SettingRepo {
 		sg:   &singleflight.Group{},
 		log:  log.NewHelper(log.With(logger, "module", "data/setting")),
 	}
+	sr.ck = make(map[string][]string)
 	sr.ck["Get"] = []string{"get", "setting", "id"}
 	sr.ck["GetByName"] = []string{"get", "setting", "name"}
 	sr.ck["List"] = []string{"list", "group"}

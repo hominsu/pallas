@@ -26,6 +26,7 @@ target "pallas-service" {
   args       = {
     AUTHOR_NAME       = "${AUTHOR_NAME}"
     AUTHOR_EMAIL      = "${AUTHOR_EMAIL}"
+    VERSION           = "$(VERSION)"
     APP_RELATIVE_PATH = "pallas/service"
   }
   tags = [
