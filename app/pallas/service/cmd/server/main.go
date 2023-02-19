@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"
@@ -68,8 +69,8 @@ func main() {
 		"service.id", id,
 		"service.name", Name,
 		"service.version", Version,
-		"ts", log.DefaultTimestamp,
-		"caller", log.DefaultCaller,
+		"ts", log.Timestamp(time.RFC3339),
+		"caller", log.Caller(5),
 	)
 
 	app, cleanup, err := initApp(bc.Server, bc.Data, bc.Secret, Version, logger)
