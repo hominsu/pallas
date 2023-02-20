@@ -111,10 +111,14 @@ func NewRedisCmd(conf *conf.Data, logger log.Logger) redis.Cmdable {
 }
 
 func NewRedisCache(rdCmd redis.Cmdable, conf *conf.Data) *cache.Cache {
-	return cache.New(&cache.Options{
-		Redis:      rdCmd,
-		LocalCache: cache.NewTinyLFU(int(conf.Cache.LfuSize), conf.Cache.Ttl.AsDuration()),
-	})
+	opts := &cache.Options{
+		Redis: rdCmd,
+	}
+	if conf.Cache.LfuEnable {
+		opts.LocalCache = cache.NewTinyLFU(int(conf.Cache.LfuSize), conf.Cache.Ttl.AsDuration())
+	}
+
+	return cache.New(opts)
 }
 
 func NewRedisStore(rdCmd redis.Cmdable, conf *conf.Secret, logger log.Logger) *sessions.RedisStore {

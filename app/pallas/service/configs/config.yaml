@@ -13,6 +13,7 @@ data:
     read_timeout: 0.2s
     write_timeout: 0.2s
   cache:
+    lfu_enable: true
     lfu_size: 1000
     ttl: 1800s
     srp_ttl: 0.5s

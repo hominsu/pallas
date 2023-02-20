@@ -26,8 +26,9 @@ func newTestDataConf() []*conf.Data {
 		WriteTimeout: durationpb.New(time.Millisecond * 200),
 	}
 	cc := &conf.Data_Cache{
-		LfuSize: 10,
-		Ttl:     durationpb.New(time.Second * 1),
+		LfuEnable: true,
+		LfuSize:   10,
+		Ttl:       durationpb.New(time.Second * 1),
 	}
 
 	c := []*conf.Data{
