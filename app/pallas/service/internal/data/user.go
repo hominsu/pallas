@@ -433,9 +433,7 @@ func (r *userRepo) IsAdminUser(ctx context.Context, userId int64) (bool, error) 
 		// get from db
 		res, err = r.data.db.User.Query().
 			Where(user.ID(int(userId))).
-			WithOwnerGroup(func(query *ent.GroupQuery) {
-				query.Where(group.NameEQ("Admin"))
-			}).
+			Where(user.HasOwnerGroupWith(group.NameEQ("Admin"))).
 			Exist(ctx)
 	}
 

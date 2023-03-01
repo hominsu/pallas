@@ -27,16 +27,6 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=3
-      postgres:
-        image: postgres:latest
-        env:
-          POSTGRES_PASSWORD: dangerous
-          POSTGRES_DB: pallas
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
       redis:
         image: redis:latest
         options: >-
