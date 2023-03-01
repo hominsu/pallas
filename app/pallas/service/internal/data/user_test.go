@@ -265,6 +265,7 @@ func TestUserRepo_Update(t *testing.T) {
 					assert.NoError(t, err)
 
 					target, err := d.repo.GetByEmail(context.TODO(), tt.name+"@pallas.icu", biz.UserViewWithEdgeIds)
+					assert.NoError(t, err)
 					tt.assertion(t, res.OwnerGroup.Id, target.OwnerGroup.Id)
 				})
 			}
@@ -388,7 +389,9 @@ func TestUserRepo_List(t *testing.T) {
 					assert.NoError(t, err)
 
 					res1, err := d.repo.List(context.TODO(), 1, nextPageToken, biz.UserViewBasic)
+					assert.NoError(t, err)
 					res2, err := d.repo.List(context.TODO(), 1, nextPageToken, biz.UserViewWithEdgeIds)
+					assert.NoError(t, err)
 					assert.Equal(t, res1.NextPageToken, res2.NextPageToken)
 
 					nextPageToken = res1.NextPageToken

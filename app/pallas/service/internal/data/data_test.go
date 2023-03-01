@@ -178,18 +178,28 @@ func checkDefaultSetting(t *testing.T) {
 		assertion    assert.ComparisonAssertionFunc
 		errAssertion assert.ErrorAssertionFunc
 	}{
-		{n: string(biz.RegisterEnable), v: "true", t: biz.TypeRegister,
-			assertion: assert.Equal, errAssertion: assert.NoError},
-		{n: string(biz.RegisterDefaultGroup), v: "Anonymous", t: biz.TypeRegister,
-			assertion: assert.Equal, errAssertion: assert.NoError},
-		{n: string(biz.RegisterMailActive), v: "false", t: biz.TypeRegister,
-			assertion: assert.Equal, errAssertion: assert.NoError},
-		{n: string(biz.RegisterMailFilter), v: "off", t: biz.TypeRegister,
-			assertion: assert.Equal, errAssertion: assert.NoError},
-		{n: string(biz.RegisterMailFilterList), v: "126.com,163.com," +
-			"gmail.com,outlook.com,qq.com,foxmail.com,yeah.net,sohu.com,sohu.cn," +
-			"139.com,wo.cn,189.cn,hotmail.com,live.com,live.cn", t: biz.TypeRegister,
-			assertion: assert.Equal, errAssertion: assert.NoError},
+		{
+			n: string(biz.RegisterEnable), v: "true", t: biz.TypeRegister,
+			assertion: assert.Equal, errAssertion: assert.NoError,
+		},
+		{
+			n: string(biz.RegisterDefaultGroup), v: "Anonymous", t: biz.TypeRegister,
+			assertion: assert.Equal, errAssertion: assert.NoError,
+		},
+		{
+			n: string(biz.RegisterMailActive), v: "false", t: biz.TypeRegister,
+			assertion: assert.Equal, errAssertion: assert.NoError,
+		},
+		{
+			n: string(biz.RegisterMailFilter), v: "off", t: biz.TypeRegister,
+			assertion: assert.Equal, errAssertion: assert.NoError,
+		},
+		{
+			n: string(biz.RegisterMailFilterList), v: "126.com,163.com," +
+				"gmail.com,outlook.com,qq.com,foxmail.com,yeah.net,sohu.com,sohu.cn," +
+				"139.com,wo.cn,189.cn,hotmail.com,live.com,live.cn", t: biz.TypeRegister,
+			assertion: assert.Equal, errAssertion: assert.NoError,
+		},
 	}
 
 	for _, d := range ds {
