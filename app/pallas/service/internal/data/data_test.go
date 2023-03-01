@@ -20,7 +20,7 @@ import (
 
 func newTestDataConf() []*conf.Data {
 	rd := &conf.Data_Redis{
-		Addr:         "127.0.0.1:6379",
+		Addr:         "redis:6379",
 		Db:           1,
 		ReadTimeout:  durationpb.New(time.Millisecond * 200),
 		WriteTimeout: durationpb.New(time.Millisecond * 200),
@@ -35,7 +35,7 @@ func newTestDataConf() []*conf.Data {
 		{
 			Database: &conf.Data_Database{
 				Driver: "mysql",
-				Source: "root:dangerous@tcp(127.0.0.1:3306)/pallas?charset=utf8mb4&parseTime=True&loc=Local",
+				Source: "root:dangerous@tcp(mysql:3306)/pallas?charset=utf8mb4&parseTime=True&loc=Local",
 			},
 			Redis: rd,
 			Cache: cc,
