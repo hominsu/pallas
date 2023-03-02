@@ -72,7 +72,7 @@ func (r *settingRepo) Get(ctx context.Context, id int64) (*biz.Setting, error) {
 		err := r.data.cache.Get(ctx, key, get)
 		if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
 			// get from db
-			get, err = r.data.db.Setting.Get(ctx, int(id))
+			get, err = r.data.db.Setting.Get(ctx, id)
 		}
 		return get, err
 	})
@@ -143,7 +143,7 @@ func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting,
 		}
 	}()
 
-	m := tx.Setting.UpdateOneID(int(s.Id))
+	m := tx.Setting.UpdateOneID(s.Id)
 	if s.Name != nil {
 		m.SetName(*s.Name)
 	}
@@ -164,7 +164,7 @@ func (r *settingRepo) Update(ctx context.Context, s *biz.Setting) (*biz.Setting,
 		if err = r.deleteCache(
 			ctx,
 			// key: setting_cache_key_get_setting_id:settingId
-			r.cacheKey(strconv.FormatInt(int64(res.ID), 10), r.ck["Get"]...),
+			r.cacheKey(strconv.FormatInt(res.ID, 10), r.ck["Get"]...),
 			// key: setting_cache_key_get_setting_name:settingName
 			r.cacheKey(res.Name, r.ck["GetByName"]...),
 			// key: setting_cache_key_list_group:all
@@ -197,7 +197,7 @@ func (r *settingRepo) Delete(ctx context.Context, id int64) error {
 		return err
 	}
 
-	err = r.data.db.Setting.DeleteOneID(int(id)).Exec(ctx)
+	err = r.data.db.Setting.DeleteOneID(id).Exec(ctx)
 	switch {
 	case err == nil:
 		// delete indexed cache
@@ -457,7 +457,7 @@ func toSettingsList(e []*ent.Setting) ([]*biz.Setting, error) {
 
 func toSetting(e *ent.Setting) (*biz.Setting, error) {
 	s := &biz.Setting{}
-	s.Id = int64(e.ID)
+	s.Id = e.ID
 	s.Name = &e.Name
 	s.Value = &e.Value
 	t := toSettingType(e.Type)

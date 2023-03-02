@@ -15,7 +15,8 @@ type User struct {
 // Fields of the User.
 func (User) Fields() []ent.Field {
 	return []ent.Field{
-		field.Int("group_id"),
+		field.Int64("id"),
+		field.Int64("group_id"),
 		field.String("email").
 			Unique(),
 		field.String("nick_name"),
@@ -24,7 +25,7 @@ func (User) Fields() []ent.Field {
 		field.Bytes("verifier").
 			Sensitive(),
 		field.Uint64("storage"),
-		field.Int("score").
+		field.Int64("score").
 			Default(0),
 		field.Enum("status").
 			Values("non_activated", "active", "banned", "overuse_baned").

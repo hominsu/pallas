@@ -13,6 +13,7 @@ type Setting struct {
 // Fields of the Setting.
 func (Setting) Fields() []ent.Field {
 	return []ent.Field{
+		field.Int64("id"),
 		field.String("name").
 			Unique(),
 		field.String("value"),

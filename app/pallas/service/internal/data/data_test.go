@@ -18,6 +18,20 @@ import (
 	"github.com/hominsu/pallas/pkg/srp"
 )
 
+type testDataSuite struct {
+	data    *Data
+	cleanup func()
+}
+
+func newTestDataSuite(t *testing.T) []testDataSuite {
+	cs := newTestDataConf()
+	ds := make([]testDataSuite, len(cs))
+	for i, c := range cs {
+		ds[i].data, ds[i].cleanup = newTestData(t, c)
+	}
+	return ds
+}
+
 func newTestDataConf() []*conf.Data {
 	rd := &conf.Data_Redis{
 		Addr:         "redis:6379",
@@ -92,14 +106,7 @@ func TestMigration(t *testing.T) {
 }
 
 func checkDefaultGroup(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-	}
+	ds := newTestDataSuite(t)
 
 	defaultGroupTestSuite := []struct {
 		name         string
@@ -128,14 +135,7 @@ func checkDefaultGroup(t *testing.T) {
 }
 
 func checkDefaultUser(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-	}
+	ds := newTestDataSuite(t)
 
 	defaultUserTestSuite := []struct {
 		email        string
@@ -162,14 +162,7 @@ func checkDefaultUser(t *testing.T) {
 }
 
 func checkDefaultSetting(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-	}
+	ds := newTestDataSuite(t)
 
 	defaultSettingTestSuite := []struct {
 		n            string

@@ -69,7 +69,6 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 		key string
 		res any
 	)
-	id := int(groupId)
 	switch groupView {
 	case biz.GroupViewViewUnspecified, biz.GroupViewBasic:
 		// key: group_cache_key_get_group_id:groupId
@@ -80,7 +79,7 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 			cErr := r.data.cache.Get(ctx, key, get)
 			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
-				get, cErr = r.data.db.Group.Get(ctx, id)
+				get, cErr = r.data.db.Group.Get(ctx, groupId)
 			}
 			return get, cErr
 		})
@@ -94,7 +93,7 @@ func (r *groupRepo) Get(ctx context.Context, groupId int64, groupView biz.GroupV
 			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				get, cErr = r.data.db.Group.Query().
-					Where(group.ID(id)).
+					Where(group.ID(groupId)).
 					WithUsers(func(query *ent.UserQuery) {
 						query.Select(user.FieldID)
 						query.Select(user.FieldNickName)
@@ -189,13 +188,13 @@ func (r *groupRepo) GetByName(ctx context.Context, name string, groupView biz.Gr
 }
 
 func (r *groupRepo) Update(ctx context.Context, group *biz.Group) (*biz.Group, error) {
-	m := r.data.db.Group.UpdateOneID(int(group.Id))
+	m := r.data.db.Group.UpdateOneID(group.Id)
 	m.SetName(group.Name)
 	m.SetMaxStorage(group.MaxStorage)
 	m.SetShareEnabled(group.ShareEnable)
-	m.SetSpeedLimit(int(group.SpeedLimit))
+	m.SetSpeedLimit(group.SpeedLimit)
 	for _, u := range group.Users {
-		m.AddUserIDs(int(u.Id))
+		m.AddUserIDs(u.Id)
 	}
 
 	// update group
@@ -243,7 +242,7 @@ func (r *groupRepo) Delete(ctx context.Context, groupId int64) error {
 		return err
 	}
 
-	err = r.data.db.Group.DeleteOneID(int(res.Id)).Exec(ctx)
+	err = r.data.db.Group.DeleteOneID(res.Id).Exec(ctx)
 	switch {
 	case err == nil:
 		// delete indexed cache
@@ -411,9 +410,9 @@ func (r *groupRepo) createBuilder(group *biz.Group) *ent.GroupCreate {
 	m.SetName(group.Name)
 	m.SetMaxStorage(group.MaxStorage)
 	m.SetShareEnabled(group.ShareEnable)
-	m.SetSpeedLimit(int(group.SpeedLimit))
+	m.SetSpeedLimit(group.SpeedLimit)
 	for _, u := range group.Users {
-		m.AddUserIDs(int(u.Id))
+		m.AddUserIDs(u.Id)
 	}
 	return m
 }
@@ -452,14 +451,14 @@ func (r *groupRepo) deleteKeysByScanPrefix(ctx context.Context, prefix ...string
 
 func toGroup(e *ent.Group) (*biz.Group, error) {
 	g := &biz.Group{}
-	g.Id = int64(e.ID)
+	g.Id = e.ID
 	g.Name = e.Name
 	g.MaxStorage = e.MaxStorage
 	g.ShareEnable = e.ShareEnabled
-	g.SpeedLimit = int64(e.SpeedLimit)
+	g.SpeedLimit = e.SpeedLimit
 	for _, edg := range e.Edges.Users {
 		g.Users = append(g.Users, &biz.User{
-			Id:       int64(edg.ID),
+			Id:       edg.ID,
 			NickName: edg.NickName,
 			Status:   toUserStatus(edg.Status),
 		})
