@@ -13,9 +13,9 @@
 <!-- PROJECT LOGO -->
 <br/>
 <div align="center">
-<!--   <a href="https://github.com/hominsu/pallas">
-    <img src="images/logo.png" alt="Logo" width="80" height="80">
-  </a> -->
+<a href="https://github.com/hominsu/pallas">
+    <img src="docs/images/pallas.png" alt="Logo" width="196">
+</a>
 
 <h3 align="center">pallas</h3>
 
@@ -31,3 +31,37 @@
     <a href="https://github.com/hominsu/pallas/issues">Request Feature</a>
   </p>
 </div>
+
+## Build & Contributing
+
+Before building, you need to have `GO >= 1.18`, [Buf CLI](https://docs.buf.build/installation). If you are developing on windows, use [scoop](https://github.com/ScoopInstaller/Scoop) to install `busybox` and `make`
+
+#### Clone this repository
+
+```bash
+git clone https://github.com/hominsu/pallas.git
+```
+
+#### Initial Workspace
+
+```bash
+go work init && go work use -r ./app && go mod tidy
+```
+
+#### Install dependencies
+
+```bash
+make init
+```
+
+#### Generate other code
+
+```bash
+make api && make conf && make ent && make wire
+```
+
+#### Compile
+
+```bash
+make build
+```
