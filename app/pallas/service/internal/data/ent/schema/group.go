@@ -15,11 +15,12 @@ type Group struct {
 // Fields of the Group.
 func (Group) Fields() []ent.Field {
 	return []ent.Field{
+		field.Int64("id"),
 		field.String("name").
 			Unique(),
 		field.Uint64("max_storage"),
 		field.Bool("share_enabled"),
-		field.Int("speed_limit"),
+		field.Int64("speed_limit"),
 	}
 }
 

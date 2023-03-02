@@ -16,17 +16,24 @@ import (
 	"github.com/hominsu/pallas/pkg/utils"
 )
 
-func TestUserRepo_Create(t *testing.T) {
+type testUserDataSuite struct {
+	data    *Data
+	cleanup func()
+	repo    biz.UserRepo
+}
+
+func newTestUserDataSuite(t *testing.T) []testUserDataSuite {
 	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-		repo    biz.UserRepo
-	}, len(cs))
+	ds := make([]testUserDataSuite, len(cs))
 	for i, c := range cs {
 		ds[i].data, ds[i].cleanup = newTestData(t, c)
 		ds[i].repo = NewUserRepo(ds[i].data, log.With(log.NewStdLogger(io.Discard)))
 	}
+	return ds
+}
+
+func TestUserRepo_Create(t *testing.T) {
+	ds := newTestUserDataSuite(t)
 
 	userTestSuite := []struct {
 		user       biz.User
@@ -59,7 +66,7 @@ func TestUserRepo_Create(t *testing.T) {
 
 					tt.user.Status = biz.StatusActive
 					tt.user.Email = tt.user.NickName + "@pallas.icu"
-					tt.user.OwnerGroup = &biz.Group{Id: int64(target.ID)}
+					tt.user.OwnerGroup = &biz.Group{Id: target.ID}
 					tt.user.Salt = salt
 					tt.user.Verifier = verifier
 
@@ -73,16 +80,7 @@ func TestUserRepo_Create(t *testing.T) {
 }
 
 func TestUserRepo_Get(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-		repo    biz.UserRepo
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-		ds[i].repo = NewUserRepo(ds[i].data, log.With(log.NewStdLogger(io.Discard)))
-	}
+	ds := newTestUserDataSuite(t)
 
 	userTestSuite := []struct {
 		user       biz.User
@@ -111,7 +109,7 @@ func TestUserRepo_Get(t *testing.T) {
 
 					tt.user.Status = biz.StatusActive
 					tt.user.Email = tt.user.NickName + "@pallas.icu"
-					tt.user.OwnerGroup = &biz.Group{Id: int64(targetGroup.ID)}
+					tt.user.OwnerGroup = &biz.Group{Id: targetGroup.ID}
 					tt.user.Salt = salt
 					tt.user.Verifier = verifier
 
@@ -143,16 +141,7 @@ func TestUserRepo_Get(t *testing.T) {
 }
 
 func TestUserRepo_GetByEmail(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-		repo    biz.UserRepo
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-		ds[i].repo = NewUserRepo(ds[i].data, log.With(log.NewStdLogger(io.Discard)))
-	}
+	ds := newTestUserDataSuite(t)
 
 	userTestSuite := []struct {
 		name      string
@@ -187,7 +176,7 @@ func TestUserRepo_GetByEmail(t *testing.T) {
 							Salt:       salt,
 							Verifier:   verifier,
 							Status:     biz.StatusActive,
-							OwnerGroup: &biz.Group{Id: int64(targetGroup.ID)},
+							OwnerGroup: &biz.Group{Id: targetGroup.ID},
 						}
 
 						_, err = d.repo.Create(context.TODO(), user)
@@ -207,16 +196,7 @@ func TestUserRepo_GetByEmail(t *testing.T) {
 }
 
 func TestUserRepo_Update(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-		repo    biz.UserRepo
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-		ds[i].repo = NewUserRepo(ds[i].data, log.With(log.NewStdLogger(io.Discard)))
-	}
+	ds := newTestUserDataSuite(t)
 
 	userTestSuite := []struct {
 		name        string
@@ -251,7 +231,7 @@ func TestUserRepo_Update(t *testing.T) {
 						Salt:       salt,
 						Verifier:   verifier,
 						Status:     biz.StatusActive,
-						OwnerGroup: &biz.Group{Id: int64(targetGroup.ID)},
+						OwnerGroup: &biz.Group{Id: targetGroup.ID},
 					}
 
 					res, err := d.repo.Create(context.TODO(), user)
@@ -260,7 +240,7 @@ func TestUserRepo_Update(t *testing.T) {
 					updateGroup, err := d.data.db.Group.Query().Where(group.NameEQ(tt.updateGroup)).Only(context.TODO())
 					assert.NoError(t, err)
 
-					res.OwnerGroup = &biz.Group{Id: int64(updateGroup.ID)}
+					res.OwnerGroup = &biz.Group{Id: updateGroup.ID}
 					_, err = d.repo.Update(context.TODO(), res)
 					assert.NoError(t, err)
 
@@ -275,16 +255,7 @@ func TestUserRepo_Update(t *testing.T) {
 }
 
 func TestUserRepo_Delete(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-		repo    biz.UserRepo
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-		ds[i].repo = NewUserRepo(ds[i].data, log.With(log.NewStdLogger(io.Discard)))
-	}
+	ds := newTestUserDataSuite(t)
 
 	userTestSuite := []struct {
 		name      string
@@ -317,7 +288,7 @@ func TestUserRepo_Delete(t *testing.T) {
 						Salt:       salt,
 						Verifier:   verifier,
 						Status:     biz.StatusActive,
-						OwnerGroup: &biz.Group{Id: int64(targetGroup.ID)},
+						OwnerGroup: &biz.Group{Id: targetGroup.ID},
 					}
 
 					res, err := d.repo.Create(context.TODO(), user)
@@ -338,16 +309,7 @@ func TestUserRepo_Delete(t *testing.T) {
 }
 
 func TestUserRepo_List(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-		repo    biz.UserRepo
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-		ds[i].repo = NewUserRepo(ds[i].data, log.With(log.NewStdLogger(io.Discard)))
-	}
+	ds := newTestUserDataSuite(t)
 
 	userTestSuite := []struct {
 		name      string
@@ -382,7 +344,7 @@ func TestUserRepo_List(t *testing.T) {
 						Salt:       salt,
 						Verifier:   verifier,
 						Status:     biz.StatusActive,
-						OwnerGroup: &biz.Group{Id: int64(targetGroup.ID)},
+						OwnerGroup: &biz.Group{Id: targetGroup.ID},
 					}
 
 					_, err = d.repo.Create(context.TODO(), user)
@@ -473,7 +435,7 @@ func TestUserRepo_BatchCreate(t *testing.T) {
 
 						u.user.Status = biz.StatusActive
 						u.user.Email = u.user.NickName + "@pallas.icu"
-						u.user.OwnerGroup = &biz.Group{Id: int64(target.ID)}
+						u.user.OwnerGroup = &biz.Group{Id: target.ID}
 						u.user.Salt = salt
 						u.user.Verifier = verifier
 
@@ -491,16 +453,7 @@ func TestUserRepo_BatchCreate(t *testing.T) {
 */
 
 func TestUserRepo_IsAdminUser(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-		repo    biz.UserRepo
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-		ds[i].repo = NewUserRepo(ds[i].data, log.With(log.NewStdLogger(io.Discard)))
-	}
+	ds := newTestUserDataSuite(t)
 
 	userTestSuite := []struct {
 		user       biz.User
@@ -529,7 +482,7 @@ func TestUserRepo_IsAdminUser(t *testing.T) {
 
 					tt.user.Status = biz.StatusActive
 					tt.user.Email = tt.user.NickName + "@pallas.icu"
-					tt.user.OwnerGroup = &biz.Group{Id: int64(targetGroup.ID)}
+					tt.user.OwnerGroup = &biz.Group{Id: targetGroup.ID}
 					tt.user.Salt = salt
 					tt.user.Verifier = verifier
 
@@ -547,15 +500,13 @@ func TestUserRepo_IsAdminUser(t *testing.T) {
 }
 
 func TestUserRepo_SRPServer(t *testing.T) {
-	cs := newTestDataConf()
-	ds := make([]struct {
-		data    *Data
-		cleanup func()
-		repo    biz.UserRepo
-	}, len(cs))
-	for i, c := range cs {
-		ds[i].data, ds[i].cleanup = newTestData(t, c)
-		ds[i].repo = NewUserRepo(ds[i].data, log.With(log.NewStdLogger(io.Discard)))
+	ds := newTestUserDataSuite(t)
+
+	bytesFromHexString := func(s string) []byte {
+		re, _ := regexp.Compile("[^0-9a-fA-F]")
+		h := re.ReplaceAll([]byte(s), []byte(""))
+		b, _ := hex.DecodeString(string(h))
+		return b
 	}
 
 	for _, d := range ds {
@@ -590,11 +541,4 @@ func TestUserRepo_SRPServer(t *testing.T) {
 			flushTestData(t, d.data)
 		})
 	}
-}
-
-func bytesFromHexString(s string) []byte {
-	re, _ := regexp.Compile("[^0-9a-fA-F]")
-	h := re.ReplaceAll([]byte(s), []byte(""))
-	b, _ := hex.DecodeString(string(h))
-	return b
 }

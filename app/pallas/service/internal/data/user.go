@@ -71,7 +71,6 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 		key string
 		res any
 	)
-	id := int(userId)
 	switch userView {
 	case biz.UserViewViewUnspecified, biz.UserViewBasic:
 		// key: user_cache_key_get_user_id:userId
@@ -82,7 +81,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 			cErr := r.data.cache.Get(ctx, key, get)
 			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
-				get, cErr = r.data.db.User.Get(ctx, id)
+				get, cErr = r.data.db.User.Get(ctx, userId)
 			}
 			return get, cErr
 		})
@@ -96,7 +95,7 @@ func (r *userRepo) Get(ctx context.Context, userId int64, userView biz.UserView)
 			if cErr != nil && errors.Is(cErr, cache.ErrCacheMiss) { // cache miss
 				// get from db
 				get, cErr = r.data.db.User.Query().
-					Where(user.ID(id)).
+					Where(user.ID(userId)).
 					WithOwnerGroup(func(query *ent.GroupQuery) {
 						query.Select(group.FieldID)
 						query.Select(group.FieldName)
@@ -187,14 +186,14 @@ func (r *userRepo) GetByEmail(ctx context.Context, email string, userView biz.Us
 }
 
 func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error) {
-	m := r.data.db.User.UpdateOneID(int(user.Id))
+	m := r.data.db.User.UpdateOneID(user.Id)
 	m.SetEmail(user.Email)
 	m.SetNickName(user.NickName)
 	m.SetStorage(user.Storage)
-	m.SetScore(int(user.Score))
+	m.SetScore(user.Score)
 	m.SetStatus(toEntUserStatus(user.Status))
 	if user.OwnerGroup != nil {
-		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
+		m.SetOwnerGroupID(user.OwnerGroup.Id)
 	}
 
 	// update user
@@ -205,15 +204,15 @@ func (r *userRepo) Update(ctx context.Context, user *biz.User) (*biz.User, error
 		if err = r.deleteCache(
 			ctx,
 			// key: user_cache_key_get_user_id:userId
-			r.cacheKey(strconv.FormatInt(int64(res.ID), 10), r.ck["Get"]...),
+			r.cacheKey(strconv.FormatInt(res.ID, 10), r.ck["Get"]...),
 			// key: user_cache_key_get_user_id_edge_ids:userId
-			r.cacheKey(strconv.FormatInt(int64(res.ID), 10), append(r.ck["Get"], "edge_ids")...),
+			r.cacheKey(strconv.FormatInt(res.ID, 10), append(r.ck["Get"], "edge_ids")...),
 			// key: user_cache_key_get_user:userEmail
 			r.cacheKey(res.Email, r.ck["GetByEmail"]...),
 			// key: user_cache_key_get_user_edge_ids:userEmail
 			r.cacheKey(res.Email, append(r.ck["GetByEmail"], "edge_ids")...),
 			// key: user_cache_key_is_admin_user_id:userId
-			r.cacheKey(strconv.FormatInt(int64(res.ID), 10), r.ck["IsAdminUser"]...),
+			r.cacheKey(strconv.FormatInt(res.ID, 10), r.ck["IsAdminUser"]...),
 		); err != nil {
 			// TODO: delete again using the asynchronous queue
 			r.log.Error(err)
@@ -245,7 +244,7 @@ func (r *userRepo) Delete(ctx context.Context, userId int64) error {
 	}
 
 	// delete user
-	err = r.data.db.User.DeleteOneID(int(userId)).Exec(ctx)
+	err = r.data.db.User.DeleteOneID(userId).Exec(ctx)
 	switch {
 	case err == nil:
 		// delete indexed cache
@@ -415,10 +414,10 @@ func (r *userRepo) createBuilder(user *biz.User) *ent.UserCreate {
 	m.SetSalt(user.Salt)
 	m.SetVerifier(user.Verifier)
 	m.SetStorage(user.Storage)
-	m.SetScore(int(user.Score))
+	m.SetScore(user.Score)
 	m.SetStatus(toEntUserStatus(user.Status))
 	if user.OwnerGroup != nil {
-		m.SetOwnerGroupID(int(user.OwnerGroup.Id))
+		m.SetOwnerGroupID(user.OwnerGroup.Id)
 	}
 	return m
 }
@@ -432,7 +431,7 @@ func (r *userRepo) IsAdminUser(ctx context.Context, userId int64) (bool, error) 
 	if err != nil && errors.Is(err, cache.ErrCacheMiss) { // cache miss
 		// get from db
 		res, err = r.data.db.User.Query().
-			Where(user.ID(int(userId))).
+			Where(user.ID(userId)).
 			Where(user.HasOwnerGroupWith(group.NameEQ("Admin"))).
 			Exist(ctx)
 	}
@@ -515,20 +514,20 @@ func toEntUserStatus(u biz.UserStatus) user.Status { return user.Status(u) }
 
 func toUser(e *ent.User) (*biz.User, error) {
 	u := &biz.User{}
-	u.Id = int64(e.ID)
-	u.GroupId = int64(e.GroupID)
+	u.Id = e.ID
+	u.GroupId = e.GroupID
 	u.Email = e.Email
 	u.NickName = e.NickName
 	u.Salt = e.Salt
 	u.Verifier = e.Verifier
 	u.Storage = e.Storage
-	u.Score = int64(e.Score)
+	u.Score = e.Score
 	u.Status = toUserStatus(e.Status)
 	u.CreateAt = e.CreatedAt
 	u.UpdateAt = e.UpdatedAt
 	if edg := e.Edges.OwnerGroup; edg != nil {
 		u.OwnerGroup = &biz.Group{
-			Id:   int64(edg.ID),
+			Id:   edg.ID,
 			Name: edg.Name,
 		}
 	}
